@@ -63,8 +63,9 @@ async function bootstrap() {
   const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup(`${apiPrefix}/docs`, app, swaggerDocument);
 
-  const port = configService.get<number>('PORT', 4000);
-  await app.listen(port);
+  const configuredPort = configService.get<string>('PORT');
+  const port = configuredPort ? Number.parseInt(configuredPort, 10) : 4000;
+  await app.listen(Number.isNaN(port) ? 4000 : port, '0.0.0.0');
 }
 
 bootstrap();
