@@ -1,10 +1,18 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { ShipmentStatus } from '@prisma/client';
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import type { ShipmentStatus } from '@prisma/client';
+import { IsIn, IsOptional, IsString } from 'class-validator';
+
+const SHIPMENT_STATUS_VALUES = [
+  'PENDING',
+  'PREPARING',
+  'SHIPPED',
+  'DELIVERED',
+  'FAILED',
+] as const;
 
 export class UpdateShipmentStatusDto {
-  @ApiPropertyOptional({ enum: ShipmentStatus })
-  @IsEnum(ShipmentStatus)
+  @ApiPropertyOptional({ enum: SHIPMENT_STATUS_VALUES })
+  @IsIn(SHIPMENT_STATUS_VALUES)
   status: ShipmentStatus;
 
   @ApiPropertyOptional()

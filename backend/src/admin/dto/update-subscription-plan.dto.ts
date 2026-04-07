@@ -1,10 +1,12 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { PlanType } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional } from 'class-validator';
+import type { PlanType } from '@prisma/client';
+import { IsBoolean, IsIn, IsOptional } from 'class-validator';
+
+const PLAN_TYPE_VALUES = ['BASIC', 'PREMIUM'] as const;
 
 export class UpdateSubscriptionPlanDto {
-  @ApiProperty({ enum: PlanType })
-  @IsEnum(PlanType)
+  @ApiProperty({ enum: PLAN_TYPE_VALUES })
+  @IsIn(PLAN_TYPE_VALUES)
   planType: PlanType;
 
   @ApiPropertyOptional()

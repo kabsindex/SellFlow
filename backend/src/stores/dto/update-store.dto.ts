@@ -1,6 +1,8 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { StoreCurrency } from '@prisma/client';
-import { IsBoolean, IsEnum, IsOptional, IsString } from 'class-validator';
+import type { StoreCurrency } from '@prisma/client';
+import { IsBoolean, IsIn, IsOptional, IsString } from 'class-validator';
+
+const STORE_CURRENCY_VALUES = ['USD', 'CDF', 'FCFA'] as const;
 
 export class UpdateStoreDto {
   @ApiPropertyOptional()
@@ -13,9 +15,9 @@ export class UpdateStoreDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ enum: StoreCurrency })
+  @ApiPropertyOptional({ enum: STORE_CURRENCY_VALUES })
   @IsOptional()
-  @IsEnum(StoreCurrency)
+  @IsIn(STORE_CURRENCY_VALUES)
   defaultCurrency?: StoreCurrency;
 
   @ApiPropertyOptional()
