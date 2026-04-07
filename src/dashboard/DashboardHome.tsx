@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import {
   ArrowUpRightIcon,
   ClipboardListIcon,
@@ -18,84 +18,8 @@ import {
   YAxis,
 } from 'recharts';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
-import { formatUsd } from '../lib/currency';
-import { freePlanProductLimit } from '../lib/plans';
-
-const revenueData = [
-  { day: 'Lun', value: 72 },
-  { day: 'Mar', value: 94 },
-  { day: 'Mer', value: 121 },
-  { day: 'Jeu', value: 88 },
-  { day: 'Ven', value: 167 },
-  { day: 'Sam', value: 142 },
-  { day: 'Dim', value: 199 },
-];
-
-const stats = [
-  {
-    icon: TrendingUpIcon,
-    label: 'Revenus du mois',
-    value: formatUsd(399),
-    note: '+18% vs semaine precedente',
-    tone: 'bg-emerald-50 text-emerald-700',
-  },
-  {
-    icon: ShoppingBagIcon,
-    label: 'Commandes en cours',
-    value: '18',
-    note: '4 a confirmer aujourd hui',
-    tone: 'bg-blue-50 text-blue-700',
-  },
-  {
-    icon: UsersIcon,
-    label: 'Clients actifs',
-    value: '42',
-    note: '12 clientes recurrentes ce mois',
-    tone: 'bg-slate-100 text-slate-700',
-  },
-  {
-    icon: PackageIcon,
-    label: 'Produits publies',
-    value: `3/${freePlanProductLimit}`,
-    note: '2 slots restants en Free',
-    tone: 'bg-amber-50 text-amber-700',
-  },
-];
-
-const recentOrders = [
-  {
-    id: '#1251',
-    customer: 'Fatou Diallo',
-    product: 'Robe Ankara',
-    amount: formatUsd(24),
-    status: 'Nouvelle',
-    statusClass: 'bg-blue-50 text-blue-700',
-  },
-  {
-    id: '#1250',
-    customer: 'Awa Sow',
-    product: 'Sac en cuir',
-    amount: formatUsd(39),
-    status: 'Preparation',
-    statusClass: 'bg-amber-50 text-amber-700',
-  },
-  {
-    id: '#1249',
-    customer: 'Moussa Konate',
-    product: 'Bijoux dores',
-    amount: formatUsd(12),
-    status: 'Expediee',
-    statusClass: 'bg-violet-50 text-violet-700',
-  },
-  {
-    id: '#1248',
-    customer: 'Aicha Bah',
-    product: 'Sandales cuir',
-    amount: formatUsd(19),
-    status: 'Livree',
-    statusClass: 'bg-slate-100 text-slate-700',
-  },
-];
+import { formatCurrency } from '../lib/currency';
+import type { CurrencyCode, DashboardSummary, PlanCapabilities } from '../lib/types';
 
 const quickActions = [
   {
@@ -119,16 +43,62 @@ const quickActions = [
 ];
 
 interface DashboardHomeProps {
+  sellerName: string;
+  storeName: string;
+  summary: DashboardSummary | null;
+  capabilities: PlanCapabilities | null;
+  currency: CurrencyCode;
+  loading: boolean;
   onNavigate: (tab: string) => void;
+  onOpenUpgrade: () => void;
 }
 
-export function DashboardHome({ onNavigate }: DashboardHomeProps) {
+export function DashboardHome({
+  sellerName,
+  storeName,
+  summary,
+  capabilities,
+  currency,
+  loading,
+  onNavigate,
+  onOpenUpgrade,
+}: DashboardHomeProps) {
   const today = new Date();
   const dateLabel = today.toLocaleDateString('fr-FR', {
     weekday: 'long',
     day: 'numeric',
     month: 'long',
   });
+  const stats = [
+    {
+      icon: TrendingUpIcon,
+      label: summary?.revenueLabel ?? 'Revenu du mois',
+      value: formatCurrency(summary?.revenueTotal ?? 0, currency),
+      note: 'Basée sur les commandes du mois en cours',
+      tone: 'bg-emerald-50 text-emerald-700',
+    },
+    {
+      icon: ShoppingBagIcon,
+      label: 'Commandes du mois',
+      value: String(summary?.monthOrdersCount ?? 0),
+      note: 'Volume mensuel des commandes',
+      tone: 'bg-blue-50 text-blue-700',
+    },
+    {
+      icon: UsersIcon,
+      label: 'Paiements en attente',
+      value: String(summary?.pendingPaymentsCount ?? 0),
+      note: 'Paiements à vérifier ou confirmer',
+      tone: 'bg-slate-100 text-slate-700',
+    },
+    {
+      icon: PackageIcon,
+      label: 'Top produits',
+      value: String(summary?.topProducts.length ?? 0),
+      note: 'Produits qui performent ce mois',
+      tone: 'bg-amber-50 text-amber-700',
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -137,7 +107,9 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h1 className="text-2xl font-bold text-slate-900">Bonjour, Amina</h1>
+        <h1 className="text-2xl font-bold text-slate-900">
+          Bonjour, {sellerName}
+        </h1>
         <p className="mt-1 text-sm capitalize text-slate-500">{dateLabel}</p>
       </motion.div>
 
@@ -154,20 +126,19 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
               Ventes depuis WhatsApp
             </div>
             <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] text-white/75">
-              Plan Basique
+              {capabilities?.currentPlan === 'PREMIUM' ? 'Plan Premium' : 'Plan Basique'}
             </div>
           </div>
 
           <h2 className="mt-6 max-w-2xl text-3xl font-bold tracking-tight sm:text-[2.2rem]">
-            Pilote ton activite depuis un tableau de bord simple, rapide et
+            Pilote ton activité depuis un tableau de bord simple, rapide et
             centre sur la vente.
           </h2>
 
           <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-200">
-            Tu peux publier tes produits, repondre aux commandes, suivre les
-            livraisons et garder les notes utiles sur chaque cliente. Premium
-            debloque ensuite le CRM avance, les analytics et les produits sans
-            limite.
+            Tu peux publier tes produits, suivre les paiements, préparer les
+            commandes, gérer les clientes et prévisualiser ta boutique depuis
+            le même espace vendeur.
           </p>
 
           <div className="mt-8 grid gap-3 sm:grid-cols-3">
@@ -199,24 +170,26 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
                 <WhatsAppIcon className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  4 nouvelles commandes
-                </p>
+                <p className="text-sm font-semibold text-slate-900">{storeName}</p>
                 <p className="text-xs text-slate-500">
-                  Recues sur WhatsApp depuis ce matin
+                  Boutique connectée au flux commercial WhatsApp
                 </p>
               </div>
             </div>
             <div className="mt-4 rounded-2xl bg-white p-4">
               <p className="text-sm font-semibold text-slate-900">
-                Boutique Amina
+                Activité récente
               </p>
               <p className="mt-1 text-sm text-slate-600">
-                Les clientes demandent surtout la robe Ankara et le sac en cuir.
+                {summary?.recentActivity[0]
+                  ? `Dernière commande ${summary.recentActivity[0].orderNumber} avec suivi ${summary.recentActivity[0].trackingReference}.`
+                  : 'Les nouvelles commandes, paiements et suivis apparaîtront ici.'}
               </p>
               <div className="mt-3 flex items-center justify-between text-sm">
-                <span className="text-slate-500">Temps moyen de reponse</span>
-                <span className="font-semibold text-emerald-700">8 min</span>
+                <span className="text-slate-500">Paiements en attente</span>
+                <span className="font-semibold text-emerald-700">
+                  {summary?.pendingPaymentsCount ?? 0}
+                </span>
               </div>
             </div>
           </div>
@@ -224,19 +197,28 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
           <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
               <SparklesIcon className="h-4 w-4 text-primary-500" />
-              Premium debloque
+              Premium débloque
             </div>
             <div className="mt-4 space-y-3 text-sm text-slate-600">
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Produits illimites et suppression du branding
+                Produits illimités et suppression du branding SellFlow
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                CRM avance avec tags, segments et historique enrichi
+                Personnalisation visuelle de la boutique et ajout du logo
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Analytics sur les revenus, panier moyen et top produits
+                CRM enrichi, analytics du mois et vues Premium
               </div>
             </div>
+            <button
+              type="button"
+              onClick={onOpenUpgrade}
+              className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600"
+            >
+              {capabilities?.currentPlan === 'PREMIUM'
+                ? 'Voir les options Premium'
+                : 'Passer au Premium'}
+            </button>
           </div>
         </motion.div>
       </div>
@@ -258,12 +240,8 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
               <stat.icon className="h-5 w-5" />
             </div>
             <p className="mt-4 text-sm text-slate-500">{stat.label}</p>
-            <p className="mt-1 text-2xl font-bold text-slate-900">
-              {stat.value}
-            </p>
-            <p className="mt-2 text-xs font-medium text-slate-500">
-              {stat.note}
-            </p>
+            <p className="mt-1 text-2xl font-bold text-slate-900">{stat.value}</p>
+            <p className="mt-2 text-xs font-medium text-slate-500">{stat.note}</p>
           </div>
         ))}
       </motion.div>
@@ -278,54 +256,60 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-slate-900">
-                Revenus cette semaine
+                Revenu du mois
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Lecture rapide de la performance de la boutique
+                Évolution mensuelle basée sur les commandes
               </p>
             </div>
             <div className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              +23%
+              {formatCurrency(summary?.revenueTotal ?? 0, currency)}
             </div>
           </div>
 
           <div className="mt-6 h-56">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={revenueData}>
-                <defs>
-                  <linearGradient id="dashboardRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <XAxis
-                  dataKey="day"
-                  axisLine={false}
-                  tickLine={false}
-                  tick={{ fontSize: 11, fill: '#94a3b8' }}
-                />
-                <YAxis hide />
-                <Tooltip
-                  contentStyle={{
-                    background: '#0f172a',
-                    border: 'none',
-                    borderRadius: '16px',
-                    color: '#ffffff',
-                    fontSize: '12px',
-                    padding: '10px 12px',
-                  }}
-                  formatter={(value: number) => [formatUsd(value), 'Revenus']}
-                  labelStyle={{ color: '#94a3b8' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#10b981"
-                  strokeWidth={2.5}
-                  fill="url(#dashboardRevenue)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {loading ? (
+              <div className="flex h-full items-center justify-center text-sm text-slate-500">
+                Chargement des revenus...
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={summary?.revenueByMonth ?? []}>
+                  <defs>
+                    <linearGradient id="dashboardRevenue" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#10b981" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <XAxis
+                    dataKey="month"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fontSize: 11, fill: '#94a3b8' }}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#0f172a',
+                      border: 'none',
+                      borderRadius: '16px',
+                      color: '#ffffff',
+                      fontSize: '12px',
+                      padding: '10px 12px',
+                    }}
+                    formatter={(value: number) => [formatCurrency(value, currency), 'Revenus']}
+                    labelStyle={{ color: '#94a3b8' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="revenue"
+                    stroke="#10b981"
+                    strokeWidth={2.5}
+                    fill="url(#dashboardRevenue)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </motion.div>
 
@@ -338,10 +322,10 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
           <div className="flex items-center justify-between px-5 pb-3 pt-5">
             <div>
               <p className="text-sm font-semibold text-slate-900">
-                Commandes recentes
+                Commandes récentes
               </p>
               <p className="mt-1 text-xs text-slate-500">
-                Les derniers paiements et statuts
+                Les derniers statuts et références de suivi
               </p>
             </div>
             <button
@@ -353,34 +337,41 @@ export function DashboardHome({ onNavigate }: DashboardHomeProps) {
           </div>
 
           <div className="divide-y divide-slate-100">
-            {recentOrders.map((order) => (
-              <div
-                key={order.id}
-                className="flex items-center justify-between px-5 py-4"
-              >
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {order.customer}
-                  </p>
-                  <p className="mt-1 truncate text-xs text-slate-500">
-                    {order.id} · {order.product}
-                  </p>
+            {summary?.recentActivity.length ? (
+              summary.recentActivity.map((order) => (
+                <div
+                  key={order.id}
+                  className="flex items-center justify-between px-5 py-4"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {order.orderNumber}
+                    </p>
+                    <p className="mt-1 truncate text-xs text-slate-500">
+                      {order.trackingReference} · {order.status}
+                    </p>
+                  </div>
+                  <div className="ml-4 text-right">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {formatCurrency(order.total, currency)}
+                    </p>
+                    <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-700">
+                      {new Date(order.createdAt).toLocaleDateString('fr-FR')}
+                    </span>
+                  </div>
                 </div>
-                <div className="ml-4 text-right">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {order.amount}
-                  </p>
-                  <span
-                    className={`mt-1 inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${order.statusClass}`}
-                  >
-                    {order.status}
-                  </span>
-                </div>
+              ))
+            ) : (
+              <div className="px-5 py-8 text-center text-sm text-slate-500">
+                Aucune commande récente pour le moment.
               </div>
-            ))}
+            )}
           </div>
         </motion.div>
       </div>
     </div>
   );
 }
+
+
+

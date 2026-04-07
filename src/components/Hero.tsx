@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import {
   ArrowRightIcon,
   PlayCircleIcon,
@@ -20,17 +20,17 @@ const heroOrders = [
     tone: 'bg-emerald-50 text-emerald-700',
   },
   {
-    name: 'Bijoux dores',
+    name: 'Bijoux dorés',
     price: '$12',
-    status: 'Livre',
+    status: 'Livré',
     tone: 'bg-slate-100 text-slate-600',
   },
 ];
 
 const heroHighlights = [
   'Catalogue professionnel et partageable',
-  'Commandes structurees directement sur WhatsApp',
-  'Paiements, suivi client et livraison au meme endroit',
+  'Commandes structurées directement sur WhatsApp',
+  'Paiements, suivi client et livraison au même endroit',
 ];
 
 export function Hero() {
@@ -49,18 +49,18 @@ export function Hero() {
         >
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-100">
             <WhatsAppIcon className="h-4 w-4" />
-            La boutique WhatsApp pensee pour les vendeurs qui veulent structurer
+            La boutique WhatsApp pensée pour les vendeurs qui veulent structurer
             leurs ventes
           </div>
 
           <h1 className="mt-6 max-w-2xl text-4xl font-bold tracking-tight text-gray-900 sm:text-5xl lg:text-6xl">
             Transformez vos conversations WhatsApp en commandes claires,
-            suivies et pretes a etre payees.
+            suivies et prêtes à être payées.
           </h1>
 
           <p className="mt-6 max-w-xl text-lg leading-relaxed text-gray-600 sm:text-xl">
             SellFlow centralise votre catalogue, votre panier, vos commandes et
-            vos confirmations clients dans une experience simple pour acheter et
+            vos confirmations clients dans une expérience simple pour acheter et
             professionnelle pour vendre.
           </p>
 
@@ -83,7 +83,7 @@ export function Hero() {
               href="#pricing"
               className="inline-flex items-center justify-center gap-2 rounded-xl bg-primary-500 px-7 py-4 text-base font-semibold text-white shadow-lg shadow-primary-500/20 transition-colors hover:bg-primary-600"
             >
-              Creer ma boutique
+              Créer ma boutique
               <ArrowRightIcon className="h-5 w-5" />
             </a>
             <a
@@ -205,7 +205,7 @@ export function Hero() {
                 </div>
                 <div>
                   <p className="text-base font-semibold text-slate-900">
-                    Paiement recu
+                    Paiement reçu
                   </p>
                   <p className="text-sm font-semibold text-emerald-600">
                     +$24
@@ -219,3 +219,7 @@ export function Hero() {
     </section>
   );
 }
+
+
+
+

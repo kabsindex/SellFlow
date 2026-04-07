@@ -1,0 +1,483 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  OWNER
+  ADMIN
+  STAFF
+  SUPER_ADMIN
+}
+
+enum PlanType {
+  BASIC
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELED
+  PENDING
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+}
+
+enum StoreCurrency {
+  USD
+  CDF
+  FCFA
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+  OUT_OF_STOCK
+  ARCHIVED
+}
+
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PAYMENT_PENDING
+  PROCESSING
+  SHIPPED
+  DELIVERED
+  CANCELED
+  OUT_OF_STOCK
+}
+
+enum PaymentStatus {
+  PENDING
+  PROOF_SUBMITTED
+  VALIDATED
+  REJECTED
+  FAILED
+}
+
+enum PaymentType {
+  ORDER
+  SUBSCRIPTION
+}
+
+enum PaymentNetwork {
+  ORANGE
+  AIRTEL
+  VODACOM
+  AFRICELL
+}
+
+enum ShipmentStatus {
+  PENDING
+  PREPARING
+  SHIPPED
+  DELIVERED
+  FAILED
+}
+
+enum MessageTemplateType {
+  ORDER_CONFIRMATION
+  PAYMENT_CONFIRMATION
+  PAYMENT_PROOF_RECEIVED
+}
+
+model Tenant {
+  id             String              @id @default(cuid())
+  name           String
+  slug           String              @unique
+  currentPlan    PlanType            @default(BASIC)
+  premiumPreview Boolean             @default(false)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  users          User[]
+  store          Store?
+  categories     Category[]
+  products       Product[]
+  customers      Customer[]
+  customerTags   CustomerTag[]
+  customerNotes  CustomerNote[]
+  orders         Order[]
+  paymentMethods PaymentMethod[]
+  payments       Payment[]
+  deliveryZones  DeliveryZone[]
+  shipments      Shipment[]
+  notifications  Notification[]
+  subscriptions  Subscription[]
+  whatsapp       WhatsAppConnection?
+  messageLogs    MessageLog[]
+  eventLogs      EventLog[]
+  dailyMetrics   DailyMetric[]
+}
+
+model User {
+  id               String         @id @default(cuid())
+  tenantId         String?
+  name             String
+  email            String?        @unique
+  whatsappNumber   String         @unique
+  passwordHash     String
+  refreshTokenHash String?
+  role             UserRole       @default(OWNER)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tenant           Tenant?        @relation(fields: [tenantId], references: [id])
+  notifications    Notification[]
+  eventLogs        EventLog[]
+}
+
+model Store {
+  id                String        @id @default(cuid())
+  tenantId          String        @unique
+  name              String
+  slug              String        @unique
+  description       String?
+  logoUrl           String?
+  defaultCurrency   StoreCurrency @default(USD)
+  brandingEnabled   Boolean       @default(true)
+  allowCustomTheme  Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  tenant            Tenant        @relation(fields: [tenantId], references: [id])
+  theme             StoreTheme?
+  orders            Order[]
+}
+
+model StoreTheme {
+  id                String   @id @default(cuid())
+  storeId           String   @unique
+  primaryColor      String   @default("#10b981")
+  accentColor       String   @default("#0f172a")
+  logoUrl           String?
+  visualPreset      String   @default("default")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  store             Store    @relation(fields: [storeId], references: [id])
+}
+
+model Category {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  slug      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  products  Product[]
+
+  @@unique([tenantId, slug])
+}
+
+model Product {
+  id               String         @id @default(cuid())
+  tenantId         String
+  categoryId       String?
+  name             String
+  slug             String
+  description      String?
+  referenceNumber  String
+  price            Decimal        @db.Decimal(10, 2)
+  stock            Int            @default(0)
+  status           ProductStatus  @default(DRAFT)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  category         Category?      @relation(fields: [categoryId], references: [id])
+  images           ProductImage[]
+  orderItems       OrderItem[]
+
+  @@unique([tenantId, slug])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  tenantId  String
+  productId String
+  url       String   @db.LongText
+  alt       String?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  product   Product  @relation(fields: [productId], references: [id])
+}
+
+model Customer {
+  id           String            @id @default(cuid())
+  tenantId     String
+  name         String
+  phone        String
+  email        String?
+  nextAction   String?
+  totalOrders  Int               @default(0)
+  totalSpent   Decimal           @default(0) @db.Decimal(10, 2)
+  lastOrderAt  DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  addresses    CustomerAddress[]
+  tags         CustomerTag[]
+  notes        CustomerNote[]
+  orders       Order[]
+
+  @@unique([tenantId, phone])
+}
+
+model CustomerAddress {
+  id          String       @id @default(cuid())
+  customerId  String
+  label       String?
+  addressLine String
+  city        String
+  createdAt   DateTime     @default(now())
+  customer    Customer     @relation(fields: [customerId], references: [id])
+}
+
+model CustomerTag {
+  id         String    @id @default(cuid())
+  tenantId   String
+  customerId String
+  label      String
+  createdAt  DateTime  @default(now())
+  tenant     Tenant    @relation(fields: [tenantId], references: [id])
+  customer   Customer  @relation(fields: [customerId], references: [id])
+
+  @@unique([customerId, label])
+}
+
+model CustomerNote {
+  id         String   @id @default(cuid())
+  tenantId   String
+  customerId String
+  content    String
+  attachments Json?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  customer   Customer @relation(fields: [customerId], references: [id])
+}
+
+model Order {
+  id                String               @id @default(cuid())
+  tenantId          String
+  storeId           String
+  customerId        String
+  paymentMethodId   String?
+  deliveryZoneId    String?
+  orderNumber       String
+  trackingReference String               @unique
+  status            OrderStatus          @default(NEW)
+  subtotal          Decimal              @db.Decimal(10, 2)
+  deliveryFee       Decimal              @default(0) @db.Decimal(10, 2)
+  total             Decimal              @db.Decimal(10, 2)
+  currency          StoreCurrency        @default(USD)
+  customerName      String
+  customerPhone     String
+  customerAddress   String
+  notes             String?
+  internalNote      String?
+  attachments       Json?
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  tenant            Tenant               @relation(fields: [tenantId], references: [id])
+  store             Store                @relation(fields: [storeId], references: [id])
+  customer          Customer             @relation(fields: [customerId], references: [id])
+  paymentMethod     PaymentMethod?       @relation(fields: [paymentMethodId], references: [id])
+  deliveryZone      DeliveryZone?        @relation(fields: [deliveryZoneId], references: [id])
+  items             OrderItem[]
+  statusHistory     OrderStatusHistory[]
+  payment           Payment?
+  shipment          Shipment?
+
+  @@unique([tenantId, orderNumber])
+}
+
+model OrderItem {
+  id          String   @id @default(cuid())
+  orderId     String
+  productId   String?
+  name        String
+  categoryName String?
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  lineTotal   Decimal  @db.Decimal(10, 2)
+  order       Order    @relation(fields: [orderId], references: [id])
+  product     Product? @relation(fields: [productId], references: [id])
+}
+
+model OrderStatusHistory {
+  id          String      @id @default(cuid())
+  orderId     String
+  status      OrderStatus
+  note        String?
+  createdById String?
+  createdAt   DateTime    @default(now())
+  order       Order       @relation(fields: [orderId], references: [id])
+}
+
+model PaymentMethod {
+  id          String          @id @default(cuid())
+  tenantId    String
+  network     PaymentNetwork
+  phoneNumber String
+  displayName String
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  tenant      Tenant          @relation(fields: [tenantId], references: [id])
+  orders      Order[]
+  payments    Payment[]
+}
+
+model Payment {
+  id              String         @id @default(cuid())
+  tenantId        String
+  orderId         String?        @unique
+  paymentMethodId String?
+  type            PaymentType
+  amount          Decimal        @db.Decimal(10, 2)
+  status          PaymentStatus  @default(PENDING)
+  message         String?
+  trashedAt       DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  tenant          Tenant         @relation(fields: [tenantId], references: [id])
+  order           Order?         @relation(fields: [orderId], references: [id])
+  paymentMethod   PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  proofs          PaymentProof[]
+}
+
+model PaymentProof {
+  id         String   @id @default(cuid())
+  tenantId   String
+  paymentId  String
+  fileUrl    String
+  fileName   String
+  mimeType   String
+  createdAt  DateTime @default(now())
+  payment    Payment  @relation(fields: [paymentId], references: [id])
+}
+
+model DeliveryZone {
+  id        String   @id @default(cuid())
+  tenantId  String
+  name      String
+  price     Decimal  @db.Decimal(10, 2)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  orders    Order[]
+  shipments Shipment[]
+}
+
+model Shipment {
+  id                String                  @id @default(cuid())
+  tenantId          String
+  orderId           String                  @unique
+  deliveryZoneId    String?
+  trackingReference String                  @unique
+  status            ShipmentStatus          @default(PENDING)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id])
+  order             Order                   @relation(fields: [orderId], references: [id])
+  deliveryZone      DeliveryZone?           @relation(fields: [deliveryZoneId], references: [id])
+  statusHistory     ShipmentStatusHistory[]
+}
+
+model ShipmentStatusHistory {
+  id         String         @id @default(cuid())
+  shipmentId String
+  status     ShipmentStatus
+  note       String?
+  createdAt  DateTime       @default(now())
+  shipment   Shipment       @relation(fields: [shipmentId], references: [id])
+}
+
+model WhatsAppConnection {
+  id            String   @id @default(cuid())
+  tenantId      String   @unique
+  phoneNumber   String
+  displayName   String
+  isActive      Boolean  @default(true)
+  defaultPrefix String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  tenant        Tenant   @relation(fields: [tenantId], references: [id])
+}
+
+model MessageLog {
+  id           String              @id @default(cuid())
+  tenantId     String
+  orderId      String?
+  customerId   String?
+  templateType MessageTemplateType
+  payload      Json
+  status       String
+  createdAt    DateTime            @default(now())
+  tenant       Tenant              @relation(fields: [tenantId], references: [id])
+}
+
+model Notification {
+  id        String              @id @default(cuid())
+  tenantId  String?
+  userId    String
+  type      String
+  title     String
+  body      String
+  link      String?
+  data      Json?
+  status    NotificationStatus  @default(UNREAD)
+  createdAt DateTime            @default(now())
+  readAt    DateTime?
+  tenant    Tenant?             @relation(fields: [tenantId], references: [id])
+  user      User                @relation(fields: [userId], references: [id])
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  tenantId          String             @unique
+  planType          PlanType
+  status            SubscriptionStatus @default(PENDING)
+  amount            Decimal            @default(1) @db.Decimal(10, 2)
+  currency          StoreCurrency      @default(USD)
+  providerReference String?
+  startsAt          DateTime?
+  endsAt            DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  tenant            Tenant             @relation(fields: [tenantId], references: [id])
+}
+
+model EventLog {
+  id          String   @id @default(cuid())
+  tenantId    String?
+  actorUserId String?
+  type        String
+  entityType  String
+  entityId    String
+  payload     Json?
+  createdAt   DateTime @default(now())
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  actor       User?    @relation(fields: [actorUserId], references: [id])
+}
+
+model DailyMetric {
+  id                   String   @id @default(cuid())
+  tenantId             String
+  date                 DateTime
+  revenueAmount        Decimal  @default(0) @db.Decimal(10, 2)
+  ordersCount          Int      @default(0)
+  pendingPaymentsCount Int      @default(0)
+  topProducts          Json?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  tenant               Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date])
+}

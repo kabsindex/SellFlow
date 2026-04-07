@@ -1,7 +1,6 @@
-import { useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  LockIcon,
   SearchIcon,
   ShoppingBagIcon,
   SparklesIcon,
@@ -10,380 +9,280 @@ import {
   XIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
-import { formatUsd } from '../lib/currency';
+import { apiRequest } from '../lib/api';
+import { formatCurrency, normalizeAmount } from '../lib/currency';
+import type { CurrencyCode, CustomerRecord, StoreRecord } from '../lib/types';
 
-interface CustomerOrder {
-  id: string;
-  product: string;
-  amount: number;
-  date: string;
+interface CustomersViewProps {
+  store: StoreRecord | null;
+  currency: CurrencyCode;
+  onChanged: () => Promise<void>;
+  onOpenUpgrade: () => void;
 }
 
-interface Customer {
-  id: string;
-  name: string;
-  phone: string;
-  totalOrders: number;
-  totalSpent: number;
-  lastOrder: string;
-  note: string;
-  nextAction: string;
-  orders: CustomerOrder[];
-}
-
-const initialCustomers: Customer[] = [
-  {
-    id: 'fatou',
-    name: 'Fatou Diallo',
-    phone: '+221771234567',
-    totalOrders: 8,
-    totalSpent: 229,
-    lastOrder: '05 avr.',
-    note: 'Cliente fidele. Aime les robes et prefere une reponse rapide.',
-    nextAction: 'Relancer pour les nouveaux arrivages mode',
-    orders: [
-      { id: '#1251', product: 'Robe Ankara', amount: 24, date: '05 avr.' },
-      { id: '#1227', product: 'Bijoux dores', amount: 12, date: '28 mars' },
-    ],
-  },
-  {
-    id: 'awa',
-    name: 'Awa Sow',
-    phone: '+221782345678',
-    totalOrders: 5,
-    totalSpent: 184,
-    lastOrder: '05 avr.',
-    note: 'Peut commander en lot pour revendre certains produits.',
-    nextAction: 'Proposer un pack accessoires',
-    orders: [{ id: '#1250', product: 'Sac en cuir', amount: 39, date: '05 avr.' }],
-  },
-  {
-    id: 'aicha',
-    name: 'Aicha Bah',
-    phone: '+224624567890',
-    totalOrders: 3,
-    totalSpent: 78,
-    lastOrder: '04 avr.',
-    note: 'Aime voir une photo finale avant expedition.',
-    nextAction: 'Confirmer la commande et rassurer sur le suivi',
-    orders: [
-      { id: '#1248', product: 'Sandales cuir', amount: 19, date: '04 avr.' },
-    ],
-  },
-  {
-    id: 'mariama',
-    name: 'Mariama Camara',
-    phone: '+225076789012',
-    totalOrders: 4,
-    totalSpent: 109,
-    lastOrder: '02 avr.',
-    note: 'Bonne cliente pour les produits lifestyle.',
-    nextAction: 'Envoyer une offre cross-sell sur les sacs',
-    orders: [
-      { id: '#1247', product: 'Sneakers Nike', amount: 55, date: '02 avr.' },
-    ],
-  },
-];
-
-const premiumCrmFeatures = [
-  'Tags et segments automatiques',
-  'Historique client enrichi',
-  'Vue recurrente et panier moyen',
-];
-
-export function CustomersView() {
-  const [customers, setCustomers] = useState(initialCustomers);
+export function CustomersView({
+  currency,
+  onChanged,
+  onOpenUpgrade,
+}: CustomersViewProps) {
+  const [customers, setCustomers] = useState<CustomerRecord[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<CustomerRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
-    null
-  );
   const [noteDraft, setNoteDraft] = useState('');
+  const [nextActionDraft, setNextActionDraft] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const selectedCustomer =
-    customers.find((customer) => customer.id === selectedCustomerId) ?? null;
-
-  const filteredCustomers = customers.filter((customer) => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return true;
+  const loadCustomers = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const payload = await apiRequest<CustomerRecord[]>('/customers');
+      setCustomers(payload);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Impossible de charger le CRM.',
+      );
+    } finally {
+      setLoading(false);
     }
-
-    return (
-      customer.name.toLowerCase().includes(query) ||
-      customer.phone.toLowerCase().includes(query)
-    );
-  });
-
-  const totalRevenue = customers.reduce(
-    (sum, customer) => sum + customer.totalSpent,
-    0
-  );
-  const averageBasket = customers.length
-    ? Math.round(totalRevenue / customers.length)
-    : 0;
-  const repeatCustomers = customers.filter(
-    (customer) => customer.totalOrders >= 4
-  ).length;
-
-  const openCustomer = (customer: Customer) => {
-    setSelectedCustomerId(customer.id);
-    setNoteDraft(customer.note);
   };
 
-  const handleSaveNote = () => {
-    if (!selectedCustomerId) {
+  useEffect(() => {
+    void loadCustomers();
+  }, []);
+
+  const filteredCustomers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return customers;
+    }
+    return customers.filter(
+      (customer) =>
+        customer.name.toLowerCase().includes(query) ||
+        customer.phone.toLowerCase().includes(query),
+    );
+  }, [customers, searchQuery]);
+
+  const totalRevenue = customers.reduce(
+    (sum, customer) => sum + normalizeAmount(customer.totalSpent),
+    0,
+  );
+
+  const repeatCustomers = customers.filter((customer) => customer.totalOrders >= 2).length;
+
+  const openCustomer = async (customerId: string) => {
+    const payload = await apiRequest<CustomerRecord>(`/customers/${customerId}`);
+    setSelectedCustomer(payload);
+    setNoteDraft('');
+    setNextActionDraft(payload.nextAction ?? '');
+  };
+
+  const handleSave = async () => {
+    if (!selectedCustomer) {
       return;
     }
 
-    setCustomers((current) =>
-      current.map((customer) =>
-        customer.id === selectedCustomerId
-          ? { ...customer, note: noteDraft.trim() }
-          : customer
-      )
-    );
+    setSaving(true);
+    try {
+      await apiRequest(`/customers/${selectedCustomer.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          nextAction: nextActionDraft.trim() || null,
+        }),
+      });
+
+      if (noteDraft.trim()) {
+        await apiRequest(`/customers/${selectedCustomer.id}/notes`, {
+          method: 'POST',
+          body: JSON.stringify({
+            content: noteDraft.trim(),
+            attachments: [],
+          }),
+        });
+      }
+
+      await loadCustomers();
+      const refreshed = await apiRequest<CustomerRecord>(`/customers/${selectedCustomer.id}`);
+      setSelectedCustomer(refreshed);
+      setNoteDraft('');
+      setNextActionDraft(refreshed.nextAction ?? '');
+      await onChanged();
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-      >
+      <div>
         <h1 className="text-2xl font-bold text-slate-900">CRM clients</h1>
         <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-          Le plan gratuit te laisse garder les informations essentielles sur les
-          clientes. Le Premium va plus loin avec des segments, des tags et plus
-          de lecture business.
+          Le CRM affiche l historique d achat, les categories preferees, la
+          frequence, le total commande et les suggestions basees sur ces regles simples.
         </p>
-      </motion.div>
+      </div>
+
+      {error ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.05 }}
-          className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
-        >
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             Clientes
           </p>
-          <p className="mt-3 text-3xl font-bold text-slate-900">
-            {customers.length}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">Contacts en CRM</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.1 }}
-          className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
-        >
+          <p className="mt-3 text-3xl font-bold text-slate-900">{customers.length}</p>
+        </div>
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-            Clientes recurrentes
+            Clientes récurrentes
           </p>
-          <p className="mt-3 text-3xl font-bold text-slate-900">
-            {repeatCustomers}
-          </p>
-          <p className="mt-2 text-sm text-slate-500">
-            4 commandes ou plus
-          </p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.15 }}
-          className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm"
-        >
+          <p className="mt-3 text-3xl font-bold text-slate-900">{repeatCustomers}</p>
+        </div>
+        <div className="rounded-[1.75rem] border border-slate-200 bg-white p-5 shadow-sm">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
             Valeur CRM
           </p>
           <p className="mt-3 text-3xl font-bold text-slate-900">
-            {formatUsd(totalRevenue)}
+            {formatCurrency(totalRevenue, currency)}
           </p>
-          <p className="mt-2 text-sm text-slate-500">Depense cumulee</p>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3, delay: 0.2 }}
-          className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 p-5"
-        >
+        </div>
+        <div className="rounded-[1.75rem] border border-emerald-100 bg-emerald-50 p-5">
           <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <SparklesIcon className="h-4 w-4 text-primary-500" />
-            Premium
+            Premium = 1$ / mois
           </div>
           <p className="mt-3 text-sm leading-relaxed text-slate-600">
-            Le plan gratuit couvre les notes et l historique simple. Premium
-            ajoute les tags, segments et la lecture du panier moyen.
+            Le Premium débloque surtout la personnalisation boutique, le branding
+            off, les produits illimités et les vues avancées de la plateforme.
           </p>
-        </motion.div>
+        </div>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
         <div className="space-y-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.25 }}
-            className="relative"
-          >
+          <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Rechercher une cliente ou un numero"
+              placeholder="Rechercher une cliente ou un numéro"
               className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
             />
-          </motion.div>
+          </div>
 
-          <div className="space-y-4">
-            {filteredCustomers.map((customer, index) => (
-              <motion.button
-                key={customer.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.04 }}
-                onClick={() => openCustomer(customer)}
-                className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-transform hover:-translate-y-0.5"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-600">
-                        {customer.name
-                          .split(' ')
-                          .map((part) => part[0])
-                          .join('')
-                          .slice(0, 2)}
-                      </div>
-                      <div>
-                        <p className="text-lg font-bold text-slate-900">
-                          {customer.name}
-                        </p>
-                        <p className="text-sm text-slate-500">
-                          Derniere commande: {customer.lastOrder}
-                        </p>
-                      </div>
+          {loading ? (
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+              Chargement du CRM...
+            </div>
+          ) : filteredCustomers.map((customer) => (
+            <button
+              key={customer.id}
+              type="button"
+              onClick={() => void openCustomer(customer.id)}
+              className="w-full rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-transform hover:-translate-y-0.5"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-600">
+                      {customer.name
+                        .split(' ')
+                        .map((part) => part[0])
+                        .join('')
+                        .slice(0, 2)}
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-slate-900">{customer.name}</p>
+                      <p className="text-sm text-slate-500">{customer.phone}</p>
                     </div>
                   </div>
-
-                  <div className="text-right">
-                    <p className="text-sm font-semibold text-slate-900">
-                      {formatUsd(customer.totalSpent)}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {customer.totalOrders} commandes
-                    </p>
-                  </div>
                 </div>
-
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Note
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {customer.note}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                      Prochaine action
-                    </p>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {customer.nextAction}
-                    </p>
-                  </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {formatCurrency(normalizeAmount(customer.totalSpent), currency)}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">{customer.totalOrders} commandes</p>
                 </div>
-              </motion.button>
-            ))}
-          </div>
+              </div>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Prochaine action</p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {customer.nextAction || 'A definir'}
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Suggestions</p>
+                  <p className="mt-2 text-sm text-slate-600">
+                    {customer.suggestions?.[0] ?? 'Suggestions disponibles dans la fiche cliente'}
+                  </p>
+                </div>
+              </div>
+            </button>
+          ))}
         </div>
 
         <div className="space-y-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.3 }}
-            className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm"
-          >
+          <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
                 <UsersIcon className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  CRM inclus en Free
-                </p>
-                <p className="text-xs text-slate-500">
-                  Fiches simples pour ne rien oublier
-                </p>
+                <p className="text-sm font-semibold text-slate-900">CRM déjà utile</p>
+                <p className="text-xs text-slate-500">Notes, historique et WhatsApp</p>
               </div>
             </div>
-
             <div className="mt-4 space-y-3 text-sm text-slate-600">
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
                 Historique des commandes par cliente
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Notes internes pour mieux relancer
+                Prochaine action modifiable
               </div>
               <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Contact direct via WhatsApp
+                Suggestions simples basees sur les achats
               </div>
             </div>
-          </motion.div>
+          </div>
 
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.35 }}
-            className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <LockIcon className="h-4 w-4 text-primary-500" />
-              Premium debloque
-            </div>
+          <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5">
+            <p className="text-sm font-semibold text-slate-900">Fonctions Premium</p>
             <div className="mt-4 space-y-3">
-              {premiumCrmFeatures.map((feature) => (
-                <div
-                  key={feature}
-                  className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  {feature}
+              {[
+                'Personnalisation boutique',
+                'Branding SellFlow désactivable',
+                'Produits illimités et vues avancées',
+              ].map((item) => (
+                <div key={item} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                  {item}
                 </div>
               ))}
             </div>
-
-            <div className="mt-5 rounded-2xl bg-slate-900 p-4 text-white">
-              <p className="text-sm font-semibold">Panier moyen Premium</p>
-              <p className="mt-2 text-2xl font-bold">{formatUsd(averageBasket)}</p>
-              <p className="mt-1 text-xs text-slate-300">
-                Lecture business disponible dans le plan Premium
-              </p>
-            </div>
-          </motion.div>
+            <button
+              type="button"
+              onClick={onOpenUpgrade}
+              className="mt-5 w-full rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-600"
+            >
+              Voir le Premium
+            </button>
+          </div>
         </div>
       </div>
 
       <AnimatePresence>
-        {selectedCustomer && (
+        {selectedCustomer ? (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-slate-950/45"
-              onClick={() => setSelectedCustomerId(null)}
-            />
-
+            <motion.div className="fixed inset-0 z-50 bg-slate-950/45" onClick={() => setSelectedCustomer(null)} />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
@@ -395,15 +294,12 @@ export function CustomersView() {
                 <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-slate-200" />
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-lg font-bold text-slate-900">
-                      {selectedCustomer.name}
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {selectedCustomer.phone}
-                    </p>
+                    <p className="text-lg font-bold text-slate-900">{selectedCustomer.name}</p>
+                    <p className="mt-1 text-sm text-slate-500">{selectedCustomer.phone}</p>
                   </div>
                   <button
-                    onClick={() => setSelectedCustomerId(null)}
+                    type="button"
+                    onClick={() => setSelectedCustomer(null)}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"
                   >
                     <XIcon className="h-5 w-5 text-slate-500" />
@@ -415,95 +311,100 @@ export function CustomersView() {
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div className="rounded-[1.75rem] bg-slate-50 p-4 text-center">
                     <ShoppingBagIcon className="mx-auto h-5 w-5 text-primary-500" />
-                    <p className="mt-3 text-2xl font-bold text-slate-900">
-                      {selectedCustomer.totalOrders}
-                    </p>
+                    <p className="mt-3 text-2xl font-bold text-slate-900">{selectedCustomer.totalOrders}</p>
                     <p className="mt-1 text-xs text-slate-500">Commandes</p>
                   </div>
                   <div className="rounded-[1.75rem] bg-slate-50 p-4 text-center">
                     <SparklesIcon className="mx-auto h-5 w-5 text-amber-500" />
                     <p className="mt-3 text-2xl font-bold text-slate-900">
-                      {formatUsd(selectedCustomer.totalSpent)}
+                      {formatCurrency(normalizeAmount(selectedCustomer.totalSpent), currency)}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">Depense</p>
                   </div>
                   <div className="rounded-[1.75rem] bg-slate-50 p-4 text-center">
                     <StickyNoteIcon className="mx-auto h-5 w-5 text-slate-500" />
                     <p className="mt-3 text-sm font-bold text-slate-900">
-                      {selectedCustomer.lastOrder}
+                      {selectedCustomer.lastOrderAt
+                        ? new Date(selectedCustomer.lastOrderAt).toLocaleDateString('fr-FR')
+                        : 'Aucune'}
                     </p>
                     <p className="mt-1 text-xs text-slate-500">Derniere commande</p>
                   </div>
                 </div>
 
+                <div className="rounded-[1.75rem] border border-slate-200 p-4">
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Prochaine action</p>
+                  <input
+                    type="text"
+                    value={nextActionDraft}
+                    onChange={(event) => setNextActionDraft(event.target.value)}
+                    className="mt-3 w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
+                </div>
+
                 <div className="rounded-[1.75rem] bg-slate-50 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Prochaine action
-                  </p>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    {selectedCustomer.nextAction}
-                  </p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Suggestions basees sur les achats</p>
+                  <div className="mt-3 space-y-2">
+                    {(selectedCustomer.suggestions ?? []).map((suggestion) => (
+                      <div key={suggestion} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                        {suggestion}
+                      </div>
+                    ))}
+                    {!selectedCustomer.suggestions?.length ? (
+                      <div className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-500">
+                        Aucune suggestion pour le moment.
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
 
                 <div className="rounded-[1.75rem] border border-slate-200 p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Notes vendeur
-                  </p>
+                  <p className="text-xs uppercase tracking-[0.18em] text-slate-500">Ajouter une note</p>
                   <textarea
                     rows={4}
                     value={noteDraft}
                     onChange={(event) => setNoteDraft(event.target.value)}
-                    className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
+                    className="mt-3 w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
                   />
                   <button
                     type="button"
-                    onClick={handleSaveNote}
-                    className="mt-3 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-slate-800"
+                    disabled={saving}
+                    onClick={() => void handleSave()}
+                    className="mt-3 rounded-2xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white disabled:opacity-60"
                   >
-                    Enregistrer la note
+                    {saving ? 'Enregistrement...' : 'Enregistrer'}
                   </button>
                 </div>
 
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                    Historique des commandes
-                  </p>
-                  <div className="mt-3 space-y-3">
-                    {selectedCustomer.orders.map((order) => (
-                      <div
-                        key={order.id}
-                        className="flex items-center justify-between rounded-[1.5rem] bg-slate-50 px-4 py-3"
-                      >
-                        <div>
-                          <p className="text-sm font-semibold text-slate-900">
-                            {order.product}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {order.id} · {order.date}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold text-slate-900">
-                          {formatUsd(order.amount)}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
+                <div className="space-y-3">
+                  {selectedCustomer.notes?.map((note) => (
+                    <div key={note.id} className="rounded-[1.5rem] bg-slate-50 px-4 py-3">
+                      <p className="text-sm text-slate-700">{note.content}</p>
+                    </div>
+                  ))}
                 </div>
 
-                <a
-                  href={`https://wa.me/${selectedCustomer.phone.replace('+', '')}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-white transition-colors hover:bg-green-600"
+                <button
+                  type="button"
+                  onClick={() =>
+                    window.open(
+                      `https://wa.me/${selectedCustomer.phone.replace(/\D/g, '')}`,
+                      '_blank',
+                      'noopener,noreferrer',
+                    )
+                  }
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-green-500 px-5 py-4 text-sm font-semibold text-white hover:bg-green-600"
                 >
                   <WhatsAppIcon className="h-5 w-5" />
                   Ecrire sur WhatsApp
-                </a>
+                </button>
               </div>
             </motion.div>
           </>
-        )}
+        ) : null}
       </AnimatePresence>
     </div>
   );
 }
+
+

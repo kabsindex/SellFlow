@@ -25,18 +25,18 @@ export const freePlan: PlanDefinition = {
   price: 'Gratuit',
   priceDetail: 'pour toujours',
   description:
-    "Le plan ideal pour lancer sa boutique, vendre sur WhatsApp et gerer ses premieres commandes sans complexite.",
+    'Le plan idéal pour lancer sa boutique, vendre sur WhatsApp et gérer ses premières commandes sans complexité.',
   cta: 'Commencer gratuitement',
   highlighted: false,
-  limitNote: 'Jusqu a 5 produits publies',
+  limitNote: "Jusqu'à 5 produits publiés",
   sections: [
     {
       title: 'Vente',
       items: [
-        'Connexion via numero WhatsApp + mot de passe',
+        'Connexion via numéro WhatsApp + mot de passe',
         'Catalogue produit et boutique en ligne',
         'Panier et checkout simple',
-        'Commandes illimitees',
+        'Commandes illimitées',
         'Paiements et livraison basiques',
       ],
     },
@@ -44,7 +44,7 @@ export const freePlan: PlanDefinition = {
       title: 'Pilotage',
       items: [
         'Dashboard vendeur essentiel',
-        'Ajout produit, prix, stock et SKU',
+        'Ajout produit, prix, stock et référence produit',
         'Suivi manuel des statuts de commande',
         'CRM client basique avec notes',
       ],
@@ -59,34 +59,34 @@ export const premiumPlan: PlanDefinition = {
   price: '1$',
   priceDetail: '/ mois',
   description:
-    'Pour les vendeurs qui veulent un dashboard plus avance, un CRM plus riche et une boutique sans limites.',
+    'Pour les vendeurs qui veulent un dashboard plus avancé, un CRM plus riche et une boutique sans limites.',
   cta: 'Passer au Premium',
   highlighted: true,
-  badge: 'Recommande',
-  limitNote: 'Produits illimites',
+  badge: 'Recommandé',
+  limitNote: 'Produits illimités',
   sections: [
     {
       title: 'Tout le Basique +',
       items: [
         'Suppression du branding SellFlow',
-        'Produits illimites',
-        'Priorite sur les demandes et relances clients',
+        'Produits illimités',
+        'Personnalisation visuelle de la boutique',
       ],
     },
     {
-      title: 'CRM avance',
+      title: 'CRM avancé',
       items: [
-        'Tags, segments et scoring client',
+        'Tags et prochaines actions modifiables',
         'Historique client enrichi',
-        'Relances WhatsApp et vues CRM avancees',
+        'Notes et vues CRM avancées',
       ],
     },
     {
-      title: 'Pilotage avance',
+      title: 'Pilotage avancé',
       items: [
         'Analytics revenus, panier moyen et top produits',
-        'Suivi commande plus detaille',
-        "Gestion d'equipe et support prioritaire",
+        'Suivi commande plus détaillé',
+        "Gestion d'équipe et options admin plateforme",
       ],
     },
   ],

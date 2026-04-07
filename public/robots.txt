@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /billing
+Disallow: /login
+
+Sitemap: https://sellflow.io/sitemap.xml

@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import {
   ArrowRightIcon,
@@ -23,11 +23,11 @@ export function Pricing() {
             Tarifs
           </p>
           <h2 className="text-3xl font-bold text-slate-900 sm:text-4xl">
-            Choisis un plan clair pour vendre, gerer ton CRM et suivre tes
+            Choisis un plan clair pour vendre, gérer ton CRM et suivre tes
             commandes.
           </h2>
           <p className="mt-4 text-lg leading-relaxed text-slate-600">
-            Le plan Basique suffit pour demarrer vite. Le plan Premium debloque
+            Le plan Basique suffit pour démarrer vite. Le plan Premium débloque
             le vrai pilotage vendeur: catalogue sans limite, CRM enrichi et
             meilleur suivi business.
           </p>
@@ -41,7 +41,7 @@ export function Pricing() {
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true, margin: '-40px' }}
               transition={{ duration: 0.4, delay: index * 0.08 }}
-              className={`relative overflow-hidden rounded-[2rem] border p-6 shadow-sm sm:p-8 ${
+              className={`relative rounded-[2rem] border p-6 shadow-sm sm:p-8 ${
                 plan.highlighted
                   ? 'border-primary-500 bg-[linear-gradient(180deg,rgba(236,253,245,0.9)_0%,rgba(255,255,255,1)_38%)] shadow-[0_25px_60px_-30px_rgba(16,185,129,0.35)]'
                   : 'border-slate-200 bg-white'
@@ -49,8 +49,8 @@ export function Pricing() {
             >
               {plan.badge && (
                 <div className="absolute left-1/2 top-0 -translate-x-1/2 -translate-y-1/2">
-                  <span className="inline-flex items-center gap-2 rounded-full bg-primary-500 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-primary-500/20">
-                    <SparklesIcon className="h-3.5 w-3.5" />
+                  <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/60 bg-[linear-gradient(135deg,#16a34a_0%,#10b981_55%,#0f766e_100%)] px-5 py-2.5 text-sm font-bold text-white shadow-[0_18px_40px_-18px_rgba(16,185,129,0.65)] ring-4 ring-white">
+                    <SparklesIcon className="h-4 w-4" />
                     {plan.badge}
                   </span>
                 </div>
@@ -142,24 +142,24 @@ export function Pricing() {
           <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-100">
             <p className="text-sm font-semibold text-slate-900">Plan Basique</p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Ideal pour lancer sa boutique, publier jusqu a 5 produits et
+              Idéal pour lancer sa boutique, publier jusqu'à 5 produits et
               suivre manuellement les commandes et clients.
             </p>
           </div>
           <div className="rounded-2xl bg-white p-5 ring-1 ring-slate-100">
             <p className="text-sm font-semibold text-slate-900">Plan Premium</p>
             <p className="mt-2 text-sm leading-relaxed text-slate-600">
-              Pense pour les vendeurs qui veulent gerer plus de volume, mieux
+              Pensé pour les vendeurs qui veulent gérer plus de volume, mieux
               segmenter leurs clients et piloter leur activite.
             </p>
           </div>
           <div className="rounded-2xl bg-slate-900 p-5 text-white">
             <div className="flex items-center gap-2 text-sm font-semibold">
               <LockIcon className="h-4 w-4 text-emerald-300" />
-              Ce que Premium debloque
+              Ce que Premium débloque
             </div>
             <p className="mt-2 text-sm leading-relaxed text-slate-300">
-              Produits illimites, CRM avance, suppression du branding,
+              Produits illimités, CRM avancé, suppression du branding,
               analytics et meilleur suivi business.
             </p>
           </div>
@@ -168,3 +168,5 @@ export function Pricing() {
     </section>
   );
 }
+
+

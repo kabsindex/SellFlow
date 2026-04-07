@@ -1,15 +1,16 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { MenuIcon, XIcon, ShoppingBagIcon } from 'lucide-react';
+import { MenuIcon, XIcon } from 'lucide-react';
+import { BrandLogo } from './BrandLogo';
 
 const navLinks = [
   {
-    label: 'Fonctionnalites',
+    label: 'Fonctionnalités',
     href: '#features',
   },
   {
-    label: 'Comment ca marche',
+    label: 'Comment ça marche',
     href: '#how-it-works',
   },
   {
@@ -29,10 +30,10 @@ export function Navbar() {
     <nav className="fixed left-0 right-0 top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-lg">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500">
-            <ShoppingBagIcon className="h-5 w-5 text-white" />
-          </div>
-          <span className="text-xl font-bold text-gray-900">SellFlow</span>
+          <BrandLogo
+            iconClassName="h-8 w-8 rounded-lg"
+            nameClassName="text-xl font-bold text-gray-900"
+          />
         </Link>
 
         <div className="hidden items-center gap-8 md:flex">
@@ -118,3 +119,4 @@ export function Navbar() {
     </nav>
   );
 }
+

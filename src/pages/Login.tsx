@@ -1,5 +1,5 @@
-import { useState, type FormEvent } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+﻿import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import {
   ArrowRightIcon,
@@ -9,7 +9,9 @@ import {
   StoreIcon,
   UsersIcon,
 } from 'lucide-react';
+import { BrandLogo } from '../components/BrandLogo';
 import { WhatsAppIcon } from '../components/WhatsAppIcon';
+import { useAuth } from '../auth/AuthContext';
 
 const loginHighlights = [
   {
@@ -20,32 +22,91 @@ const loginHighlights = [
   {
     icon: ShoppingBagIcon,
     title: 'Suivi des commandes',
-    text: 'Confirme, prepare et livre chaque commande depuis un dashboard simple.',
+    text: 'Confirme, prépare et livre chaque commande depuis un dashboard simple.',
   },
   {
     icon: UsersIcon,
     title: 'CRM client',
-    text: 'Retrouve les historiques, les notes et les segments importants.',
+    text: 'Retrouve les historiques, les notes et les prochaines actions utiles.',
   },
 ];
 
+type AuthMode = 'signin' | 'signup';
+
 export function Login() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated, signIn, signUp } = useAuth();
+  const [mode, setMode] = useState<AuthMode>('signin');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
+    name: '',
+    storeName: '',
+    email: '',
     whatsapp: '',
     password: '',
   });
 
-  const isValid = Boolean(form.whatsapp.trim() && form.password.trim());
+  const redirectTarget = (() => {
+    const candidate = searchParams.get('redirect') || '/dashboard';
+    return candidate.startsWith('/') ? candidate : '/dashboard';
+  })();
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate(redirectTarget, { replace: true });
+    }
+  }, [isAuthenticated, navigate, redirectTarget]);
+
+  const isValid = useMemo(() => {
+    if (!form.whatsapp.trim() || !form.password.trim()) {
+      return false;
+    }
+
+    if (mode === 'signup') {
+      return Boolean(form.name.trim() && form.storeName.trim());
+    }
+
+    return true;
+  }, [form.name, form.password, form.storeName, form.whatsapp, mode]);
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    if (!isValid) {
+    if (!isValid || submitting) {
       return;
     }
 
-    navigate('/dashboard');
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      if (mode === 'signin') {
+        await signIn({
+          whatsappNumber: form.whatsapp.trim(),
+          password: form.password,
+        });
+      } else {
+        await signUp({
+          name: form.name.trim(),
+          storeName: form.storeName.trim(),
+          email: form.email.trim() || undefined,
+          whatsappNumber: form.whatsapp.trim(),
+          password: form.password,
+        });
+      }
+
+      navigate(redirectTarget, { replace: true });
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Impossible de continuer pour le moment.',
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
@@ -58,10 +119,10 @@ export function Login() {
           className="flex-1"
         >
           <Link to="/" className="inline-flex items-center gap-2">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500 text-white">
-              <ShoppingBagIcon className="h-5 w-5" />
-            </div>
-            <span className="text-xl font-bold text-slate-900">SellFlow</span>
+            <BrandLogo
+              iconClassName="h-10 w-10 rounded-xl"
+              nameClassName="text-xl font-bold text-slate-900"
+            />
           </Link>
 
           <div className="mt-10 max-w-xl">
@@ -71,12 +132,13 @@ export function Login() {
             </div>
 
             <h1 className="mt-6 text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-              Connecte-toi avec ton numero WhatsApp et gere ta boutique.
+              Connecte-toi avec ton numéro WhatsApp et gère ta boutique.
             </h1>
 
             <p className="mt-5 text-lg leading-relaxed text-slate-600">
-              Une connexion simple pour acceder a ton espace vendeur, ton
-              catalogue, tes commandes et ton CRM sans friction.
+              Une connexion simple pour accéder à ton espace vendeur, ton
+              catalogue, tes commandes, ton CRM et la personnalisation de ta
+              boutique selon ton plan.
             </p>
 
             <div className="mt-8 space-y-4">
@@ -116,17 +178,104 @@ export function Login() {
                 <WhatsAppIcon className="h-6 w-6" />
               </div>
               <div>
-                <p className="text-lg font-bold text-slate-900">Connexion</p>
+                <p className="text-lg font-bold text-slate-900">
+                  {mode === 'signin' ? 'Connexion' : 'Inscription'}
+                </p>
                 <p className="text-sm text-slate-500">
-                  Accede a ton espace vendeur SellFlow
+                  {mode === 'signin'
+                    ? 'Accède à ton espace vendeur SellFlow'
+                    : 'Crée ton espace vendeur avec ton nom et ta boutique'}
                 </p>
               </div>
             </div>
 
+            <div className="mt-6 grid grid-cols-2 gap-2 rounded-2xl bg-slate-100 p-1">
+              <button
+                type="button"
+                onClick={() => setMode('signin')}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-colors ${
+                  mode === 'signin'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500'
+                }`}
+              >
+                Connexion
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode('signup')}
+                className={`rounded-2xl px-4 py-2 text-sm font-semibold transition-colors ${
+                  mode === 'signup'
+                    ? 'bg-white text-slate-900 shadow-sm'
+                    : 'text-slate-500'
+                }`}
+              >
+                Inscription
+              </button>
+            </div>
+
             <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
+              {mode === 'signup' ? (
+                <>
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Nom
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Amina Diallo"
+                      value={form.name}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Nom de la boutique
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ex: Boutique Amina"
+                      value={form.storeName}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          storeName: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-sm font-medium text-slate-700">
+                      Email
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="Optionnel"
+                      value={form.email}
+                      onChange={(event) =>
+                        setForm((current) => ({
+                          ...current,
+                          email: event.target.value,
+                        }))
+                      }
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-400 focus:bg-white focus:outline-none"
+                    />
+                  </div>
+                </>
+              ) : null}
+
               <div>
                 <label className="mb-2 block text-sm font-medium text-slate-700">
-                  Numero WhatsApp
+                  Numéro WhatsApp
                 </label>
                 <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 focus-within:border-emerald-400 focus-within:bg-white">
                   <WhatsAppIcon className="h-5 w-5 text-emerald-500" />
@@ -168,7 +317,7 @@ export function Login() {
 
               <div className="rounded-2xl bg-slate-50 p-4">
                 <p className="text-sm font-medium text-slate-900">
-                  Acces apres connexion
+                  Accès après connexion
                 </p>
                 <div className="mt-3 grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
                   <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-100">
@@ -186,31 +335,46 @@ export function Login() {
                 </div>
               </div>
 
+              {error ? (
+                <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {error}
+                </div>
+              ) : null}
+
               <button
                 type="submit"
-                disabled={!isValid}
+                disabled={!isValid || submitting}
                 className={`inline-flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-base font-semibold transition-all ${
-                  isValid
+                  isValid && !submitting
                     ? 'bg-primary-500 text-white shadow-lg shadow-primary-500/20 hover:bg-primary-600'
                     : 'cursor-not-allowed bg-slate-200 text-slate-400'
                 }`}
               >
-                Se connecter
+                {submitting
+                  ? 'Chargement...'
+                  : mode === 'signin'
+                    ? 'Se connecter'
+                    : 'Créer mon compte'}
                 <ArrowRightIcon className="h-5 w-5" />
               </button>
             </form>
 
             <p className="mt-5 text-center text-sm text-slate-500">
               Pas encore de compte ?{' '}
-              <Link to="/" className="font-semibold text-primary-600 hover:text-primary-700">
-                Voir les plans
-              </Link>
+              <button
+                type="button"
+                onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')}
+                className="font-semibold text-primary-600 hover:text-primary-700"
+              >
+                {mode === 'signin' ? 'Créer mon espace vendeur' : 'Déjà un compte'}
+              </button>
             </p>
 
             <div className="mt-6 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-              <p className="font-semibold">Connexion simple pour la demo</p>
+              <p className="font-semibold">Connexion simple et directe</p>
               <p className="mt-1">
-                Entre ton numero WhatsApp et ton mot de passe puis accede au
+                Le numéro WhatsApp et le mot de passe suffisent pour te connecter.
+                Lors de l'inscription, ton nom personnalise automatiquement le
                 dashboard vendeur.
               </p>
             </div>
@@ -222,10 +386,10 @@ export function Login() {
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">
-                    Acces vendeur
+                    Accès vendeur
                   </p>
                   <p className="text-xs text-slate-500">
-                    Catalogue, commandes, CRM et suivi
+                    Catalogue, commandes, CRM, paiements et suivi
                   </p>
                 </div>
               </div>
@@ -236,3 +400,4 @@ export function Login() {
     </div>
   );
 }
+

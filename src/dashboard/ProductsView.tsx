@@ -1,393 +1,408 @@
-import { useState } from 'react';
+﻿import { useEffect, useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
-  ArrowRightIcon,
+  ExternalLinkIcon,
   ImageIcon,
-  LockIcon,
   PackageIcon,
   PlusIcon,
   SearchIcon,
   SparklesIcon,
-  StoreIcon,
+  WalletCardsIcon,
   XIcon,
 } from 'lucide-react';
-import { formatUsd } from '../lib/currency';
+import { apiRequest, getApiBaseUrl } from '../lib/api';
+import { formatCurrency, normalizeAmount } from '../lib/currency';
 import { freePlanProductLimit } from '../lib/plans';
+import type {
+  CategoryRecord,
+  PaymentRecord,
+  PlanCapabilities,
+  ProductRecord,
+  StoreRecord,
+} from '../lib/types';
 
-type ProductStatus = 'Publie' | 'Brouillon';
-
-interface Product {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  stock: number;
-  sku: string;
-  status: ProductStatus;
-  description: string;
+interface ProductsViewProps {
+  store: StoreRecord | null;
+  capabilities: PlanCapabilities | null;
+  onChanged: () => Promise<void>;
+  onOpenUpgrade: () => void;
 }
 
-interface ProductForm {
+interface ProductFormState {
   name: string;
-  category: string;
   price: string;
   stock: string;
-  sku: string;
-  status: ProductStatus;
+  referenceNumber: string;
   description: string;
+  categoryId: string;
+  newCategoryName: string;
+  createCategory: boolean;
+  status: 'PUBLISHED' | 'DRAFT';
+  imageUrls: string[];
 }
 
-const categories = ['Mode', 'Accessoires', 'Bijoux', 'Chaussures', 'Autre'];
-
-const initialProducts: Product[] = [
-  {
-    id: 'robe-ankara',
-    name: 'Robe Ankara',
-    category: 'Mode',
-    price: 24,
-    stock: 12,
-    sku: 'ANK-ROBE-01',
-    status: 'Publie',
-    description: 'Robe midi en tissu Ankara pour les commandes quotidiennes.',
-  },
-  {
-    id: 'sac-cuir',
-    name: 'Sac en cuir',
-    category: 'Accessoires',
-    price: 39,
-    stock: 5,
-    sku: 'SAC-CUIR-02',
-    status: 'Publie',
-    description: 'Sac a main structure avec finition cuir et doublure textile.',
-  },
-  {
-    id: 'bijoux-dores',
-    name: 'Bijoux dores',
-    category: 'Bijoux',
-    price: 12,
-    stock: 18,
-    sku: 'BIJ-OR-03',
-    status: 'Brouillon',
-    description: 'Set leger pour upsell et packs cadeaux.',
-  },
-];
-
-const emptyForm: ProductForm = {
+const emptyForm: ProductFormState = {
   name: '',
-  category: categories[0],
   price: '',
   stock: '',
-  sku: '',
-  status: 'Publie',
+  referenceNumber: '',
   description: '',
+  categoryId: '',
+  newCategoryName: '',
+  createCategory: false,
+  status: 'PUBLISHED',
+  imageUrls: [],
 };
 
-const premiumFeatures = [
-  'Produits illimites',
-  'Variantes taille et couleur',
-  'Collections mises en avant',
-  'Suppression du branding SellFlow',
-];
-
-export function ProductsView() {
-  const [products, setProducts] = useState(initialProducts);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<ProductForm>(emptyForm);
-
-  const filteredProducts = products.filter((product) => {
-    const query = searchQuery.trim().toLowerCase();
-
-    if (!query) {
-      return true;
-    }
-
-    return (
-      product.name.toLowerCase().includes(query) ||
-      product.category.toLowerCase().includes(query) ||
-      product.sku.toLowerCase().includes(query)
-    );
+function readFile(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () =>
+      typeof reader.result === 'string'
+        ? resolve(reader.result)
+        : reject(new Error('Image invalide.'));
+    reader.onerror = () => reject(new Error('Image invalide.'));
+    reader.readAsDataURL(file);
   });
+}
 
-  const publishedCount = products.filter(
-    (product) => product.status === 'Publie'
-  ).length;
-  const draftCount = products.filter(
-    (product) => product.status === 'Brouillon'
-  ).length;
-  const lowStockCount = products.filter((product) => product.stock <= 5).length;
-  const canCreateProduct = products.length < freePlanProductLimit;
-  const isEditing = Boolean(editingId);
+export function ProductsView({
+  store,
+  capabilities,
+  onChanged,
+  onOpenUpgrade,
+}: ProductsViewProps) {
+  const [products, setProducts] = useState<ProductRecord[]>([]);
+  const [categories, setCategories] = useState<CategoryRecord[]>([]);
+  const [payments, setPayments] = useState<PaymentRecord[]>([]);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [form, setForm] = useState<ProductFormState>(emptyForm);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [paymentsOpen, setPaymentsOpen] = useState(false);
+
+  const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [productsPayload, categoriesPayload, paymentsPayload] = await Promise.all([
+        apiRequest<ProductRecord[]>('/products'),
+        apiRequest<CategoryRecord[]>('/categories'),
+        apiRequest<PaymentRecord[]>('/payments'),
+      ]);
+      setProducts(productsPayload);
+      setCategories(categoriesPayload);
+      setPayments(paymentsPayload);
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Impossible de charger le catalogue.',
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadData();
+  }, []);
+
+  const filteredProducts = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return products;
+    }
+    return products.filter((product) => {
+      const categoryName = product.category?.name.toLowerCase() ?? '';
+      return (
+        product.name.toLowerCase().includes(query) ||
+        product.referenceNumber.toLowerCase().includes(query) ||
+        categoryName.includes(query)
+      );
+    });
+  }, [products, searchQuery]);
+
+  const canCreateProduct =
+    capabilities?.currentPlan === 'PREMIUM' || products.length < freePlanProductLimit;
 
   const openCreateModal = () => {
     if (!canCreateProduct) {
+      onOpenUpgrade();
       return;
     }
-
-    setEditingId(null);
-    setForm(emptyForm);
-    setIsModalOpen(true);
+    setEditingProductId(null);
+    setForm({ ...emptyForm, categoryId: categories[0]?.id ?? '' });
+    setModalOpen(true);
   };
 
-  const openEditModal = (product: Product) => {
-    setEditingId(product.id);
+  const openEditModal = (product: ProductRecord) => {
+    setEditingProductId(product.id);
     setForm({
       name: product.name,
-      category: product.category,
-      price: String(product.price),
+      price: String(normalizeAmount(product.price)),
       stock: String(product.stock),
-      sku: product.sku,
-      status: product.status,
-      description: product.description,
+      referenceNumber: product.referenceNumber,
+      description: product.description ?? '',
+      categoryId: product.category?.id ?? '',
+      newCategoryName: '',
+      createCategory: false,
+      status: product.status === 'DRAFT' ? 'DRAFT' : 'PUBLISHED',
+      imageUrls: product.images.map((image) => image.url),
     });
-    setIsModalOpen(true);
+    setModalOpen(true);
   };
 
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingId(null);
+  const resetModal = () => {
+    setEditingProductId(null);
     setForm(emptyForm);
+    setModalOpen(false);
   };
 
-  const handleSave = () => {
-    const nextPrice = Number(form.price);
-    const nextStock = Number(form.stock);
+  const handleImages = async (files: FileList | null) => {
+    const nextFiles = Array.from(files ?? []);
+    if (!nextFiles.length) {
+      return;
+    }
+    const urls = await Promise.all(nextFiles.map((file) => readFile(file)));
+    setForm((current) => ({
+      ...current,
+      imageUrls: [...current.imageUrls, ...urls],
+    }));
+  };
 
-    if (!form.name.trim() || Number.isNaN(nextPrice) || Number.isNaN(nextStock)) {
+  const handleSave = async () => {
+    const payload = {
+      name: form.name.trim(),
+      price: Number(form.price),
+      stock: Number(form.stock),
+      referenceNumber: form.referenceNumber.trim(),
+      description: form.description.trim() || undefined,
+      status: form.status,
+      categoryId: form.createCategory ? undefined : form.categoryId || undefined,
+      newCategoryName: form.createCategory ? form.newCategoryName.trim() : undefined,
+      imageUrls: form.imageUrls,
+    };
+
+    if (
+      !payload.name ||
+      !payload.referenceNumber ||
+      Number.isNaN(payload.price) ||
+      Number.isNaN(payload.stock) ||
+      (form.createCategory && !payload.newCategoryName)
+    ) {
+      setError('Completes les champs obligatoires du produit.');
       return;
     }
 
-    if (!isEditing && !canCreateProduct) {
-      return;
-    }
-
-    if (editingId) {
-      setProducts((current) =>
-        current.map((product) =>
-          product.id === editingId
-            ? {
-                ...product,
-                name: form.name.trim(),
-                category: form.category,
-                price: nextPrice,
-                stock: nextStock,
-                sku: form.sku.trim() || product.sku,
-                status: form.status,
-                description: form.description.trim(),
-              }
-            : product
-        )
+    setSubmitting(true);
+    setError(null);
+    try {
+      await apiRequest(editingProductId ? `/products/${editingProductId}` : '/products', {
+        method: editingProductId ? 'PATCH' : 'POST',
+        body: JSON.stringify(payload),
+      });
+      await loadData();
+      await onChanged();
+      resetModal();
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : 'Impossible d enregistrer le produit.',
       );
-    } else {
-      setProducts((current) => [
-        {
-          id: `${form.name.trim().toLowerCase().replace(/\s+/g, '-')}-${Date.now()}`,
-          name: form.name.trim(),
-          category: form.category,
-          price: nextPrice,
-          stock: nextStock,
-          sku: form.sku.trim() || `SKU-${current.length + 1}`,
-          status: form.status,
-          description: form.description.trim(),
-        },
-        ...current,
-      ]);
+    } finally {
+      setSubmitting(false);
     }
-
-    closeModal();
   };
 
-  const handleDelete = () => {
-    if (!editingId) {
+  const handleDelete = async () => {
+    if (!editingProductId) {
       return;
     }
+    setSubmitting(true);
+    try {
+      await apiRequest(`/products/${editingProductId}`, { method: 'DELETE' });
+      await loadData();
+      await onChanged();
+      resetModal();
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
-    setProducts((current) =>
-      current.filter((product) => product.id !== editingId)
-    );
-    closeModal();
+  const handleTrashPayment = async (paymentId: string) => {
+    await apiRequest(`/payments/${paymentId}`, { method: 'DELETE' });
+    await loadData();
   };
 
   return (
     <div className="space-y-6">
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.3 }}
-        className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"
-      >
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
-            Catalogue vendeur
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900">Catalogue vendeur</h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-slate-500">
-            Ajoute tes produits, fixe tes prix, gere le stock et decide ce qui
-            doit etre publie ou garde en brouillon.
+            Ajoute des photos, choisis une categorie existante ou cree-en une
+            nouvelle, puis fixe le prix dans la devise principale de ta boutique.
           </p>
         </div>
-
         <button
+          type="button"
           onClick={openCreateModal}
-          disabled={!canCreateProduct}
-          className={`inline-flex items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-semibold transition-colors ${
-            canCreateProduct
-              ? 'bg-primary-500 text-white hover:bg-primary-600'
-              : 'cursor-not-allowed bg-slate-200 text-slate-400'
-          }`}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary-500 px-5 py-3 text-sm font-semibold text-white hover:bg-primary-600"
         >
           <PlusIcon className="h-4 w-4" />
           Ajouter un produit
         </button>
-      </motion.div>
+      </div>
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.05 }}
-            className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm"
-          >
-            <div className="bg-[linear-gradient(135deg,#0f172a_0%,#111827_40%,#14532d_100%)] p-6 text-white">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">
-                    Plan Basique
-                  </p>
-                  <h2 className="mt-2 text-2xl font-bold">
-                    {products.length}/{freePlanProductLimit} produits crees
-                  </h2>
-                </div>
-                <div className="rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-white">
-                  Free
-                </div>
-              </div>
+      {error ? (
+        <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      ) : null}
 
-              <div className="mt-5 h-2 rounded-full bg-white/10">
-                <div
-                  className="h-2 rounded-full bg-emerald-400"
-                  style={{
-                    width: `${(products.length / freePlanProductLimit) * 100}%`,
-                  }}
-                />
-              </div>
+      <div className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+              {capabilities?.currentPlan === 'PREMIUM' ? 'Plan Premium' : 'Plan Basique'}
+            </p>
+            <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              {products.length}
+              {capabilities?.currentPlan === 'PREMIUM'
+                ? ' produits'
+                : `/${freePlanProductLimit} produits`}
+            </h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Devise boutique : {store?.defaultCurrency ?? 'USD'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <a
+              href={store ? `/shop?slug=${store.slug}` : '#'}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`inline-flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold ${
+                store
+                  ? 'bg-slate-100 text-slate-900 hover:bg-slate-200'
+                  : 'pointer-events-none bg-slate-200 text-slate-400'
+              }`}
+            >
+              <ExternalLinkIcon className="h-4 w-4" />
+              Voir ma boutique
+            </a>
+            <button
+              type="button"
+              onClick={() => setPaymentsOpen(true)}
+              className="inline-flex items-center gap-2 rounded-2xl bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-900 hover:bg-slate-200"
+            >
+              <WalletCardsIcon className="h-4 w-4" />
+              Voir tous les paiements
+            </button>
+          </div>
+        </div>
 
-              <p className="mt-4 max-w-2xl text-sm leading-relaxed text-slate-200">
-                Le plan gratuit permet de publier jusqu a 5 produits, gerer les
-                prix, le stock et le statut. Premium retire cette limite et
-                ajoute des outils catalogue plus avances.
-              </p>
-            </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Publiés</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {products.filter((product) => product.status !== 'DRAFT').length}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Brouillons</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {products.filter((product) => product.status === 'DRAFT').length}
+            </p>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-4">
+            <p className="text-xs uppercase tracking-[0.18em] text-slate-400">Stock faible</p>
+            <p className="mt-2 text-2xl font-bold text-slate-900">
+              {products.filter((product) => product.stock <= 5).length}
+            </p>
+          </div>
+        </div>
+      </div>
 
-            <div className="grid gap-4 p-5 sm:grid-cols-3">
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Publies
-                </p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {publishedCount}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Brouillons
-                </p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {draftCount}
-                </p>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-4">
-                <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-                  Stock faible
-                </p>
-                <p className="mt-3 text-2xl font-bold text-slate-900">
-                  {lowStockCount}
-                </p>
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 }}
-            className="relative"
-          >
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="space-y-4">
+          <div className="relative">
             <SearchIcon className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              placeholder="Rechercher par produit, categorie ou SKU"
+              placeholder="Rechercher par produit, catégorie ou référence produit"
               className="w-full rounded-2xl border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
             />
-          </motion.div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {filteredProducts.map((product, index) => (
-              <motion.button
-                key={product.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: index * 0.04 }}
-                onClick={() => openEditModal(product)}
-                className="rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-transform hover:-translate-y-0.5"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-700">
-                      <PackageIcon className="h-5 w-5" />
-                    </div>
-                    <h3 className="mt-4 text-lg font-bold text-slate-900">
-                      {product.name}
-                    </h3>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {product.category} · {product.sku}
-                    </p>
-                  </div>
-                  <span
-                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                      product.status === 'Publie'
-                        ? 'bg-emerald-50 text-emerald-700'
-                        : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {product.status}
-                  </span>
-                </div>
-
-                <p className="mt-4 text-sm leading-relaxed text-slate-600">
-                  {product.description}
-                </p>
-
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                      Prix
-                    </p>
-                    <p className="mt-2 text-lg font-bold text-slate-900">
-                      {formatUsd(product.price)}
-                    </p>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                    <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
-                      Stock
-                    </p>
-                    <p className="mt-2 text-lg font-bold text-slate-900">
-                      {product.stock}
-                    </p>
-                  </div>
-                </div>
-              </motion.button>
-            ))}
           </div>
 
-          {filteredProducts.length === 0 && (
+          {loading ? (
+            <div className="rounded-[1.75rem] border border-slate-200 bg-white px-6 py-12 text-center text-sm text-slate-500">
+              Chargement du catalogue...
+            </div>
+          ) : filteredProducts.length ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {filteredProducts.map((product) => (
+                <button
+                  key={product.id}
+                  type="button"
+                  onClick={() => openEditModal(product)}
+                  className="rounded-[1.75rem] border border-slate-200 bg-white p-5 text-left shadow-sm transition-transform hover:-translate-y-0.5"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-2xl bg-slate-100">
+                        {product.images[0]?.url ? (
+                          <img
+                            src={product.images[0].url}
+                            alt={product.name}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <PackageIcon className="h-6 w-6 text-slate-500" />
+                        )}
+                      </div>
+                      <h3 className="mt-4 text-lg font-bold text-slate-900">{product.name}</h3>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {product.category?.name ?? 'Sans catégorie'} · {product.referenceNumber}
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                        product.status === 'OUT_OF_STOCK'
+                          ? 'bg-red-50 text-red-700'
+                          : product.status === 'DRAFT'
+                            ? 'bg-slate-100 text-slate-600'
+                            : 'bg-emerald-50 text-emerald-700'
+                      }`}
+                    >
+                      {product.status === 'OUT_OF_STOCK'
+                        ? 'Rupture'
+                        : product.status === 'DRAFT'
+                          ? 'Brouillon'
+                          : 'Publié'}
+                    </span>
+                  </div>
+                  <p className="mt-4 text-sm text-slate-600">
+                    {product.description || 'Aucune description pour le moment.'}
+                  </p>
+                  <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                    <span className="text-sm font-semibold text-slate-900">
+                      {formatCurrency(normalizeAmount(product.price), store?.defaultCurrency)}
+                    </span>
+                    <span className="text-sm text-slate-500">Stock {product.stock}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
             <div className="rounded-[1.75rem] border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
-              <p className="text-sm font-semibold text-slate-900">
-                Aucun produit trouve
-              </p>
+              <p className="text-sm font-semibold text-slate-900">Aucun produit trouve</p>
               <p className="mt-2 text-sm text-slate-500">
                 Essaie un autre mot-cle ou ajoute un nouveau produit.
               </p>
@@ -395,92 +410,37 @@ export function ProductsView() {
           )}
         </div>
 
-        <div className="space-y-4">
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.15 }}
-            className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm"
+        <div className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5">
+          <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <SparklesIcon className="h-4 w-4 text-primary-500" />
+            Premium pour le catalogue
+          </div>
+          <div className="mt-4 space-y-3">
+            {[
+              'Produits illimités',
+              'Logo vendeur et personnalisation visuelle',
+              'Suppression du branding SellFlow',
+              'Aperçu Premium de la boutique',
+            ].map((feature) => (
+              <div key={feature} className="rounded-2xl bg-white px-4 py-3 text-sm text-slate-700">
+                {feature}
+              </div>
+            ))}
+          </div>
+          <button
+            type="button"
+            onClick={onOpenUpgrade}
+            className="mt-5 w-full rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-600"
           >
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary-50 text-primary-600">
-                <StoreIcon className="h-6 w-6" />
-              </div>
-              <div>
-                <p className="text-sm font-semibold text-slate-900">
-                  Conseils catalogue
-                </p>
-                <p className="text-xs text-slate-500">
-                  Ce qui aide a mieux vendre
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-4 space-y-3 text-sm text-slate-600">
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Garde un prix simple et un stock fiable pour rassurer les
-                acheteurs.
-              </div>
-              <div className="rounded-2xl bg-slate-50 px-4 py-3">
-                Mets en avant 3 produits forts avant d elargir le catalogue.
-              </div>
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="rounded-[2rem] border border-emerald-100 bg-emerald-50 p-5"
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-              <SparklesIcon className="h-4 w-4 text-primary-500" />
-              Premium pour le catalogue
-            </div>
-
-            <div className="mt-4 space-y-3">
-              {premiumFeatures.map((feature) => (
-                <div
-                  key={feature}
-                  className="flex items-start gap-3 rounded-2xl bg-white px-4 py-3 text-sm text-slate-700"
-                >
-                  <LockIcon className="mt-0.5 h-4 w-4 flex-shrink-0 text-primary-500" />
-                  <span>{feature}</span>
-                </div>
-              ))}
-            </div>
-
-            <button className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-primary-500 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-primary-600">
-              Passer au Premium
-              <ArrowRightIcon className="h-4 w-4" />
-            </button>
-          </motion.div>
+            Voir les options Premium
+          </button>
         </div>
       </div>
 
-      <button
-        onClick={openCreateModal}
-        disabled={!canCreateProduct}
-        className={`fixed bottom-24 right-5 z-40 flex h-14 w-14 items-center justify-center rounded-full shadow-lg lg:hidden ${
-          canCreateProduct
-            ? 'bg-primary-500 text-white shadow-primary-500/25'
-            : 'bg-slate-300 text-slate-500 shadow-slate-300/30'
-        }`}
-      >
-        <PlusIcon className="h-6 w-6" />
-      </button>
-
       <AnimatePresence>
-        {isModalOpen && (
+        {modalOpen ? (
           <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-slate-950/45"
-              onClick={closeModal}
-            />
-
+            <motion.div className="fixed inset-0 z-50 bg-slate-950/45" onClick={resetModal} />
             <motion.div
               initial={{ y: '100%' }}
               animate={{ y: 0 }}
@@ -493,14 +453,15 @@ export function ProductsView() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-lg font-bold text-slate-900">
-                      {isEditing ? 'Modifier le produit' : 'Ajouter un produit'}
+                      {editingProductId ? 'Modifier le produit' : 'Ajouter un produit'}
                     </p>
                     <p className="mt-1 text-sm text-slate-500">
-                      Nom, prix, stock et publication
+                      Photos, catégorie, prix, stock et référence produit
                     </p>
                   </div>
                   <button
-                    onClick={closeModal}
+                    type="button"
+                    onClick={resetModal}
                     className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"
                   >
                     <XIcon className="h-5 w-5 text-slate-500" />
@@ -509,181 +470,241 @@ export function ProductsView() {
               </div>
 
               <div className="space-y-4 p-5">
-                <div className="flex aspect-video items-center justify-center rounded-[1.75rem] border-2 border-dashed border-slate-200 bg-slate-50">
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-8 w-8 text-slate-300" />
-                    <p className="mt-2 text-sm text-slate-500">
-                      Zone image de presentation
-                    </p>
-                  </div>
-                </div>
+                <label className="flex min-h-[160px] cursor-pointer flex-col items-center justify-center rounded-[1.75rem] border-2 border-dashed border-slate-200 bg-slate-50 px-4 text-center">
+                  <ImageIcon className="h-8 w-8 text-slate-300" />
+                  <p className="mt-2 text-sm font-medium text-slate-700">Ajouter des photos</p>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    className="hidden"
+                    onChange={(event) => void handleImages(event.target.files)}
+                  />
+                </label>
 
-                <div className="grid gap-4 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Nom du produit
-                    </label>
-                    <input
-                      type="text"
-                      value={form.name}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          name: event.target.value,
-                        }))
-                      }
-                      placeholder="Ex: Robe Ankara"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Prix
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.price}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          price: event.target.value,
-                        }))
-                      }
-                      placeholder="24"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Stock
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      value={form.stock}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          stock: event.target.value,
-                        }))
-                      }
-                      placeholder="10"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Categorie
-                    </label>
-                    <select
-                      value={form.category}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          category: event.target.value,
-                        }))
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    >
-                      {categories.map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      SKU
-                    </label>
-                    <input
-                      type="text"
-                      value={form.sku}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          sku: event.target.value,
-                        }))
-                      }
-                      placeholder="SKU-001"
-                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    />
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Statut
-                    </label>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {(['Publie', 'Brouillon'] as ProductStatus[]).map((status) => (
+                {form.imageUrls.length ? (
+                  <div className="grid grid-cols-3 gap-3">
+                    {form.imageUrls.map((imageUrl, index) => (
+                      <div key={`${index}-${imageUrl.slice(0, 16)}`} className="relative rounded-2xl bg-slate-100">
+                        <img src={imageUrl} alt="" className="h-24 w-full rounded-2xl object-cover" />
                         <button
-                          key={status}
                           type="button"
                           onClick={() =>
                             setForm((current) => ({
                               ...current,
-                              status,
+                              imageUrls: current.imageUrls.filter((_, imageIndex) => imageIndex !== index),
                             }))
                           }
-                          className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors ${
-                            form.status === status
-                              ? 'border-primary-500 bg-primary-50 text-primary-700'
-                              : 'border-slate-200 bg-white text-slate-600'
-                          }`}
+                          className="absolute right-2 top-2 rounded-full bg-slate-950/70 p-1 text-white"
                         >
-                          {status}
+                          <XIcon className="h-3 w-3" />
                         </button>
-                      ))}
-                    </div>
+                      </div>
+                    ))}
                   </div>
+                ) : null}
 
-                  <div className="sm:col-span-2">
-                    <label className="mb-2 block text-sm font-medium text-slate-700">
-                      Description
-                    </label>
-                    <textarea
-                      rows={4}
-                      value={form.description}
-                      onChange={(event) =>
-                        setForm((current) => ({
-                          ...current,
-                          description: event.target.value,
-                        }))
-                      }
-                      placeholder="Ce qu il faut savoir sur le produit"
-                      className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/10"
-                    />
-                  </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))}
+                    placeholder="Nom du produit"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
+                  <input
+                    type="text"
+                    value={form.referenceNumber}
+                    onChange={(event) =>
+                      setForm((current) => ({ ...current, referenceNumber: event.target.value }))
+                    }
+                    placeholder="Référence produit"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.price}
+                    onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))}
+                    placeholder={`Prix (${store?.defaultCurrency ?? 'USD'})`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.stock}
+                    onChange={(event) => setForm((current) => ({ ...current, stock: event.target.value }))}
+                    placeholder="Stock"
+                    className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                  />
                 </div>
 
-                <div className="space-y-3 pb-4 pt-2">
-                  <button
-                    type="button"
-                    onClick={handleSave}
-                    className="w-full rounded-2xl bg-primary-500 py-4 text-sm font-semibold text-white transition-colors hover:bg-primary-600"
-                  >
-                    {isEditing ? 'Enregistrer les modifications' : 'Ajouter le produit'}
-                  </button>
-                  {isEditing && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-700">Categorie</p>
                     <button
                       type="button"
-                      onClick={handleDelete}
-                      className="w-full rounded-2xl bg-red-50 py-4 text-sm font-semibold text-red-600 transition-colors hover:bg-red-100"
+                      onClick={() =>
+                        setForm((current) => ({
+                          ...current,
+                          createCategory: !current.createCategory,
+                          newCategoryName: '',
+                        }))
+                      }
+                      className="text-xs font-semibold text-primary-600"
+                    >
+                      {form.createCategory ? 'Utiliser une catégorie existante' : 'Créer une catégorie'}
+                    </button>
+                  </div>
+                  {form.createCategory ? (
+                    <input
+                      type="text"
+                      value={form.newCategoryName}
+                      onChange={(event) =>
+                        setForm((current) => ({ ...current, newCategoryName: event.target.value }))
+                      }
+                      placeholder="Nouvelle categorie"
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                    />
+                  ) : (
+                    <select
+                      value={form.categoryId}
+                      onChange={(event) => setForm((current) => ({ ...current, categoryId: event.target.value }))}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                    >
+                      <option value="">Sans catégorie</option>
+                      {categories.map((category) => (
+                        <option key={category.id} value={category.id}>
+                          {category.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={form.description}
+                  onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="Description du produit"
+                  className="w-full resize-none rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
+                />
+
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {(['PUBLISHED', 'DRAFT'] as const).map((status) => (
+                    <button
+                      key={status}
+                      type="button"
+                      onClick={() => setForm((current) => ({ ...current, status }))}
+                      className={`rounded-2xl border px-4 py-3 text-sm font-semibold ${
+                        form.status === status
+                          ? 'border-primary-500 bg-primary-50 text-primary-700'
+                          : 'border-slate-200 bg-white text-slate-600'
+                      }`}
+                    >
+                      {status === 'PUBLISHED' ? 'Publié' : 'Brouillon'}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-3 pb-4">
+                  <button
+                    type="button"
+                    onClick={() => void handleSave()}
+                    disabled={submitting}
+                    className="w-full rounded-2xl bg-primary-500 py-4 text-sm font-semibold text-white disabled:opacity-60"
+                  >
+                    {submitting ? 'Enregistrement...' : editingProductId ? 'Enregistrer' : 'Ajouter'}
+                  </button>
+                  {editingProductId ? (
+                    <button
+                      type="button"
+                      onClick={() => void handleDelete()}
+                      disabled={submitting}
+                      className="w-full rounded-2xl bg-red-50 py-4 text-sm font-semibold text-red-600 disabled:opacity-60"
                     >
                       Supprimer le produit
                     </button>
-                  )}
+                  ) : null}
                 </div>
               </div>
             </motion.div>
           </>
-        )}
+        ) : null}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {paymentsOpen ? (
+          <>
+            <motion.div className="fixed inset-0 z-50 bg-slate-950/45" onClick={() => setPaymentsOpen(false)} />
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className="fixed bottom-0 right-0 top-0 z-50 w-full max-w-xl overflow-y-auto bg-white p-5"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-lg font-bold text-slate-900">Tous les paiements</p>
+                  <p className="mt-1 text-sm text-slate-500">Consultation, detail et corbeille securisee.</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setPaymentsOpen(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100"
+                >
+                  <XIcon className="h-5 w-5 text-slate-500" />
+                </button>
+              </div>
+
+              <div className="mt-6 space-y-4">
+                {payments.map((payment) => (
+                  <div key={payment.id} className="rounded-[1.5rem] border border-slate-200 p-4">
+                    <p className="text-sm font-semibold text-slate-900">
+                      {payment.order?.orderNumber ?? 'Paiement boutique'}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {payment.paymentMethod?.network ?? 'Sans réseau'} · {payment.status}
+                    </p>
+                    <p className="mt-3 text-sm font-semibold text-slate-900">
+                      {formatCurrency(normalizeAmount(payment.amount), store?.defaultCurrency)}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      {payment.proofs.map((proof) => (
+                        <a
+                          key={proof.id}
+                          href={`${getApiBaseUrl().replace(/\/api$/, '')}${proof.fileUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="rounded-xl bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700"
+                        >
+                          Voir preuve
+                        </a>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => void handleTrashPayment(payment.id)}
+                        className="rounded-xl bg-red-50 px-3 py-2 text-xs font-semibold text-red-600"
+                      >
+                        Corbeille
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {!payments.length ? (
+                  <div className="rounded-[1.5rem] bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
+                    Aucun paiement enregistre pour le moment.
+                  </div>
+                ) : null}
+              </div>
+            </motion.div>
+          </>
+        ) : null}
       </AnimatePresence>
     </div>
   );
 }
+
+
+

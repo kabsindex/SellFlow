@@ -1,31 +1,34 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import {
   BanknoteIcon,
   BellIcon,
   CheckIcon,
+  FileImageIcon,
   LinkIcon,
   MapPinIcon,
+  ReceiptTextIcon,
   SendIcon,
   ShoppingBagIcon,
+  TruckIcon,
   UserIcon,
 } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
 
 const benefits = [
   {
-    title: 'Un resume complet',
+    title: 'Une commande vraiment exploitable',
     description:
-      'Produit, taille, montant, client et adresse arrivent dans un seul message.',
+      'Numéro de commande, suivi, produits, total et mode de paiement arrivent dans un seul récapitulatif.',
   },
   {
-    title: 'Une confirmation rapide',
+    title: 'La preuve reste accessible',
     description:
-      'Vous repondez vite avec un message propre, sans ressaisir les details.',
+      'Le message peut contenir un lien vers le dashboard vendeur pour retrouver la preuve de paiement et la commande.',
   },
   {
-    title: 'Un suivi rassurant',
+    title: 'Le suivi client reste propre',
     description:
-      'Le client recoit des mises a jour claires jusqu a la livraison.',
+      'Une fois confirmée, la commande peut continuer avec un message WhatsApp clair et un statut de préparation.',
   },
 ];
 
@@ -41,18 +44,18 @@ export function WhatsAppHighlight() {
         >
           <div className="inline-flex items-center gap-2 rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700">
             <WhatsAppIcon className="h-4 w-4" />
-            Flux WhatsApp structure
+            Flux WhatsApp structuré
           </div>
 
           <h2 className="mt-6 max-w-xl text-3xl font-bold leading-tight text-gray-900 sm:text-4xl">
-            Chaque commande arrive dans WhatsApp avec tout le contexte utile pour
-            vendre plus vite.
+            La commande WhatsApp ressemble au vrai récapitulatif que le vendeur
+            recevra dans SellFlow.
           </h2>
 
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-gray-600">
-            SellFlow ne se contente pas d envoyer un message. La plateforme
-            prepare un recapitulatif clair, facilite la confirmation et garde le
-            client informe a chaque etape.
+            Le client valide sa commande, choisit son paiement, envoie sa preuve
+            puis le vendeur reçoit un message plus concret avec le numéro, le
+            suivi et un accès direct au dashboard.
           </p>
 
           <div className="mt-8 space-y-4">
@@ -108,9 +111,10 @@ export function WhatsAppHighlight() {
 
               <div className="space-y-4 bg-[#e9dfd4] px-5 py-5">
                 <div className="flex justify-end">
-                  <div className="max-w-[78%] rounded-[1.7rem] rounded-tr-sm bg-[#dff7b7] px-5 py-4 shadow-sm">
+                  <div className="max-w-[80%] rounded-[1.7rem] rounded-tr-sm bg-[#dff7b7] px-5 py-4 shadow-sm">
                     <p className="text-[15px] leading-7 text-slate-900">
-                      Bonjour ! Je voudrais commander la robe Ankara en taille M
+                      Bonjour, je viens de finaliser ma commande sur SellFlow.
+                      J&apos;ai choisi Orange Money et ajoute la preuve.
                     </p>
                     <p className="mt-2 text-right text-xs text-slate-500">
                       14:32
@@ -119,30 +123,42 @@ export function WhatsAppHighlight() {
                 </div>
 
                 <div className="flex justify-start">
-                  <div className="w-[86%] rounded-[1.7rem] rounded-tl-sm bg-white px-5 py-4 shadow-sm">
+                  <div className="w-[90%] rounded-[1.7rem] rounded-tl-sm bg-white px-5 py-4 shadow-sm">
                     <div className="flex items-center gap-2 text-slate-900">
                       <span className="flex h-6 w-6 items-center justify-center rounded-md bg-emerald-500 text-white">
                         <CheckIcon className="h-4 w-4" />
                       </span>
-                      <p className="text-xl font-bold">Nouvelle commande recue !</p>
+                      <p className="text-xl font-bold">Commande SellFlow reçue !</p>
                     </div>
 
-                    <div className="mt-4 rounded-2xl bg-slate-50 p-4">
+                    <div className="mt-4 space-y-3 rounded-2xl bg-slate-50 p-4">
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <ReceiptTextIcon className="h-4 w-4 text-emerald-600" />
+                        ORD-20260407-7298
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <TruckIcon className="h-4 w-4 text-emerald-600" />
+                        TRK-SLF-340455
+                      </div>
                       <div className="flex items-center gap-2 text-sm text-slate-700">
                         <ShoppingBagIcon className="h-4 w-4 text-emerald-600" />
-                        Robe Ankara — Taille M
+                        Iphone 13 128 go x1
                       </div>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
-                        <BanknoteIcon className="h-4 w-4 text-emerald-600" />
-                        $24
-                      </div>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
                         <UserIcon className="h-4 w-4 text-emerald-600" />
-                        Fatou Diallo
+                        Eliezer Mamoso
                       </div>
-                      <div className="mt-3 flex items-center gap-2 text-sm text-slate-700">
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
                         <MapPinIcon className="h-4 w-4 text-emerald-600" />
-                        Dakar, Plateau
+                        Kinshasa, Gombe
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-slate-700">
+                        <BanknoteIcon className="h-4 w-4 text-emerald-600" />
+                        Orange Money - Jean P - $200
+                      </div>
+                      <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-sm text-emerald-700 ring-1 ring-emerald-100">
+                        <FileImageIcon className="h-4 w-4" />
+                        Regarder la preuve de paiement ici
                       </div>
                     </div>
 
@@ -151,9 +167,10 @@ export function WhatsAppHighlight() {
                 </div>
 
                 <div className="flex justify-end">
-                  <div className="max-w-[74%] rounded-[1.7rem] rounded-tr-sm bg-[#dff7b7] px-5 py-4 shadow-sm">
+                  <div className="max-w-[78%] rounded-[1.7rem] rounded-tr-sm bg-[#dff7b7] px-5 py-4 shadow-sm">
                     <p className="text-[15px] leading-7 text-slate-900">
-                      Commande confirmee. Livraison demain avant 18h !
+                      Commande confirmée. Paiement bien reçu. Suivi TRK-SLF-340455.
+                      Livraison demain avant 18h.
                     </p>
                     <p className="mt-2 text-right text-xs text-slate-500">
                       14:33
@@ -164,16 +181,19 @@ export function WhatsAppHighlight() {
                 <div className="flex justify-center">
                   <div className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-xs font-medium text-slate-500 shadow-sm">
                     <BellIcon className="h-3.5 w-3.5" />
-                    Statut mis a jour : En preparation
+                    Statut mis à jour : Paiement reçu puis en préparation
                   </div>
                 </div>
               </div>
 
               <div className="flex items-center gap-3 bg-white px-4 py-3">
                 <div className="flex-1 rounded-full border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-400">
-                  Ecrire un message...
+                  Écrire un message...
                 </div>
-                <button className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/25">
+                <button
+                  type="button"
+                  className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-500 text-white shadow-md shadow-emerald-500/25"
+                >
                   <SendIcon className="h-5 w-5" />
                 </button>
               </div>
@@ -194,7 +214,7 @@ export function WhatsAppHighlight() {
                   <p className="text-sm font-semibold text-slate-900">
                     sellflow.io/amina
                   </p>
-                  <p className="text-xs text-slate-400">Lien boutique partage</p>
+                  <p className="text-xs text-slate-400">Lien boutique partagé</p>
                 </div>
               </div>
             </motion.div>
@@ -204,3 +224,4 @@ export function WhatsAppHighlight() {
     </section>
   );
 }
+

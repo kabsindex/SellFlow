@@ -1,4 +1,4 @@
-import { motion } from 'framer-motion';
+﻿import { motion } from 'framer-motion';
 import {
   CameraIcon,
   StoreIcon,
@@ -65,7 +65,7 @@ export function UseCases() {
           </h2>
           <p className="mt-4 text-lg text-gray-500 max-w-2xl mx-auto">
             Que tu vendes des vêtements, de la nourriture, des services ou de
-            l'artisanat — SellFlow s'adapte à ton activité.
+            l'artisanat, SellFlow s'adapte à ton activité.
           </p>
         </motion.div>
 
@@ -112,3 +112,5 @@ export function UseCases() {
     </section>);
 
 }
+
+

@@ -1,5 +1,5 @@
-import { ShoppingBagIcon } from 'lucide-react';
 import { WhatsAppIcon } from './WhatsAppIcon';
+import { BrandLogo } from './BrandLogo';
 const footerLinks = {
   Produit: [
   {
@@ -60,10 +60,10 @@ export function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <a href="#" className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
-                <ShoppingBagIcon className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-xl font-bold text-gray-900">SellFlow</span>
+              <BrandLogo
+                iconClassName="h-8 w-8 rounded-lg"
+                nameClassName="text-xl font-bold text-gray-900"
+              />
             </a>
             <p className="text-sm text-gray-500 leading-relaxed mb-4">
               La plateforme de commerce conversationnel pour les vendeurs
