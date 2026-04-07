@@ -23,13 +23,13 @@ export class StoresService {
 
     if (dto.brandingEnabled === false && !capabilities.canRemoveBranding) {
       throw new ForbiddenException(
-        'Le branding SellFlow ne peut être désactivé qu'en Premium.',
+        "Le branding SellFlow ne peut être désactivé qu'en Premium.",
       );
     }
 
     if (dto.logoUrl && !capabilities.canAddLogo) {
       throw new ForbiddenException(
-        'L ajout du logo vendeur est reserve au plan Premium.',
+        "L'ajout du logo vendeur est réservé au plan Premium.",
       );
     }
 
